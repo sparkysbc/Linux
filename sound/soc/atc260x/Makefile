@@ -5,6 +5,8 @@ snd-soc-dai-owl-objs                        :=      dai-owl.o
 snd-soc-hdmi-owl-objs                       :=      hdmi-audio-owl.o
 snd-soc-pcm-owl-objs                        :=      pcm-owl.o dmaengine-pcm-owl.o
 snd-soc-link-owl-objs                       :=      link-owl.o
+snd-soc-allo-piano-dac-objs			:=	allo-piano-dac.o
+snd-soc-allo-piano-dac-plus-objs		:=	allo-piano-dac-plus.o
 
 obj-$(CONFIG_SND_SOC_OWL) += snd-soc-pcm-owl.o
 obj-$(CONFIG_SND_SOC_ATC2603A) += snd-soc-atc2603a.o 
@@ -14,3 +16,5 @@ obj-$(CONFIG_SND_SOC_HDMI_OWL) += snd-soc-hdmi-owl.o
 
 # ATC2603A PMU Machine Support
 obj-$(CONFIG_SND_SOC_ALL_PMU_OWL) += snd-soc-link-owl.o
+obj-$(CONFIG_SND_SOC_ALLO_PIANO_DAC) += snd-soc-allo-piano-dac.o
+obj-$(CONFIG_SND_SOC_ALLO_PIANO_DAC_PLUS) += snd-soc-allo-piano-dac-plus.o

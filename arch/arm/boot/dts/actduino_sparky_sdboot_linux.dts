@@ -809,12 +809,27 @@
 			calibration_table = <0 0 0>;			
 		};
 
-		mc323x@4c{		
+		mc323x@4a{		
 			compatible = "mc323x";
-			reg = <0x4c>;
+			reg = <0x4a>;
 			position = "-3";
 			calibration_table = <0 0 0>;			
 		};
+
+	        pcm5122@4c{
+                        compatible = "ti,pcm5122";
+                        reg = <0x4c>;
+                        status = "okay";
+                        pinctrl-names = "default";
+                        pinctrl-0 = <&i2s0_state_default>;
+                };
+
+		pcm5122@4d{
+                        compatible = "ti,pcm5122";
+                        reg = <0x4d>;
+                        status = "okay";
+                        pinctrl-names = "default";
+                };
 
 		mpu6515@68{
 			compatible = "owl-gyrosensor";
