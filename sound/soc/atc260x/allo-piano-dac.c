@@ -45,9 +45,6 @@
 static int snd_allo_piano_dac_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params)
 {
-
-
-
 	return 0;
 }
 
@@ -79,7 +76,6 @@ static struct snd_soc_card snd_soc_allo_pianodac = {
 	.name = "PianoDAC",
 	.owner = THIS_MODULE,
 	.dai_link = &allo_piano_dac_link_dai,
-/*	.num_links = ARRAY_SIZE(allo_piano_dac_link_dai),*/
 	.num_links = 1,
 };
 

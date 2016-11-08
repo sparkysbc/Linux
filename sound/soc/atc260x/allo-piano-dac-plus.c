@@ -163,7 +163,7 @@ static int snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 
 		while (i < (fw->size-1)) {
 			dsp_code_read = (struct dsp_code *)&fw->data[i];
-			ndelay(300000);
+			ndelay(500000);
 			if (0 == dsp_code_read->offset) {
 				dsp_page_number = dsp_code_read->val;
 				ret = pcm512x_set_reg(dac,

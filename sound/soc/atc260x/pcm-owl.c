@@ -49,7 +49,7 @@ static struct snd_pcm_hardware atm7059_playback_hw_info = {
 	.channels_min		= 2,
 	.channels_max		= 8,
 	#ifdef CONFIG_SND_UBUNTU
-	.buffer_bytes_max	= 32 * 1024,
+	.buffer_bytes_max	= 64 * 1024,
 	#else
 	.buffer_bytes_max	= 64 * 1024,
 	#endif
@@ -215,7 +215,7 @@ static int atm7059_pcm_hw_params(struct snd_pcm_substream *substream,
 		switch (pcm_priv->output_mode) {
 		case O_MODE_SPDIF:
 			atslave->mode = PRIORITY_SEVEN| SRC_INCR |
-			    DST_CONSTANT | SRC_DCU | DST_DEV | HDMIAUDIO | CRITICAL_BIT;
+			    DST_CONSTANT | SRC_DCU | DST_DEV | SPDIF | CRITICAL_BIT;
 			dst_addr = SPDIF_DAT;
 			break;
 		case O_MODE_HDMI:

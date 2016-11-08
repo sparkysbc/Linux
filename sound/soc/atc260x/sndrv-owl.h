@@ -23,7 +23,8 @@
 #define COMPILETEST 0
 
 #define ATM7059_AIF_I2S 0
-#define ATM7059_AIF_HDMI 0
+#define ATM7059_AIF_HDMI 1
+#define ATM7059_AIF_SPDIF 2
 static int error_switch = 1;
 static int debug_switch = 1;
 
@@ -52,6 +53,32 @@ enum {
 
 
 
+
+
+//////////////////////////////////////////////
+enum {
+	SAMPLE_RATE_32000= 1,
+
+	SAMPLE_RATE_44100=2,
+	DEFAULT_SAMPLE_RATE=SAMPLE_RATE_44100,
+
+	SAMPLE_RATE_48000=3,
+	SAMPLE_RATE_88200,
+	SAMPLE_RATE_96000,
+	SAMPLE_RATE_176400,
+	SAMPLE_RATE_192000,
+	SAMPLE_RATE_352800,
+	SAMPLE_RATE_384000,
+};
+enum {
+	USER_TYPE_Audio60958_3 = 0,
+	USER_TYPE_Audio60958_4,
+	USER_TYPE_Audio61937,
+	USER_TYPE_AudioSMPTE_337M_AND_OTHERS,
+	USER_TYPE_TSTAMP_LAST = USER_TYPE_AudioSMPTE_337M_AND_OTHERS,
+};
+//////////////////////////////////////////////
+
 typedef struct {
 	short sample_rate;	/* 真实采样率除以1000 */
 	char index[2];		/* 对应硬件寄存器的索引值 */
@@ -78,6 +105,7 @@ typedef struct {
 
 struct atm7059_pcm_priv {
 	int output_mode;
+	volatile int userType;
 	struct pinctrl *pc;
 	struct pinctrl_state *ps;
 };

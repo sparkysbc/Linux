@@ -29,6 +29,7 @@ static int dai_clk_hdmi_count;
 static int dai_clk_spdif_count;
 static int dai_mode_i2s_count;
 static int dai_mode_hdmi_count;
+static int dai_mode_spdif_count;
 
 #ifdef CONFIG_SND_UBUNTU
 static int is_i2s_playback;
@@ -427,64 +428,232 @@ static int atm7059_dai_record_mode_set(struct atm7059_pcm_priv *pcm_priv,
 	return 0;
 }
 
+static int get_audio_fs_code(int sample_rate)
+{
+	int AudioFS;
+	int fs = sample_rate / 1000;
+
+	/* for O_MODE_HDMI */
+	/* 32000, 44100, 48000, 88200, 96000, 176400,
+	   192000, 352.8kHz, 384kHz */
+	switch (fs) {
+		case 32:
+			AudioFS = SAMPLE_RATE_32000;
+			break;
+		case 44:
+			AudioFS = SAMPLE_RATE_44100;
+			break;
+		case 48:
+			AudioFS = SAMPLE_RATE_48000;
+			break;
+		case 88:
+			AudioFS = SAMPLE_RATE_88200;
+			break;
+		case 96:
+			AudioFS = SAMPLE_RATE_96000;
+			break;
+		case 176:
+			AudioFS = SAMPLE_RATE_176400;
+			break;
+		case 192:
+			AudioFS = SAMPLE_RATE_192000;
+			break;
+		case 352:
+			AudioFS = SAMPLE_RATE_352800;
+			break;
+		case 384:
+			AudioFS = SAMPLE_RATE_384000;
+			break;
+		default:
+			AudioFS = SAMPLE_RATE_44100;
+			break;
+	}
+	return AudioFS;
+}
+
+static void spdif_channel_status_cfg(int samplerateCode, int userType)
+{
+	unsigned int tmp03 = 0;
+	unsigned int tmp47 = 0;
+
+	tmp03 &= (~(0xf << 24));//samplerate
+	tmp03 &= (~(0x3));//USER_TYPE
+
+	tmp47 &= (~(0xf << 4));//samplerate
+
+	tmp47 &= (~0xf);//sample word length
+	tmp47 |= 0x2;///20 bit
+
+	switch (samplerateCode) {
+		/* 32000, 44100, 48000, 88200, 96000,
+		   176400, 192000, 352.8kHz, 384kHz */
+		case 1://32000
+			tmp03 |= (0x3 << 24);
+			tmp47 |= (0xc << 4);
+			break;
+
+		case 2://44100
+			tmp03 |= (0x0 << 24);
+			tmp47 |= (0xf << 4);
+			break;
+
+		case 3://48000
+			tmp03 |= (0x2 << 24);
+			tmp47 |= (0xd << 4);
+			break;
+
+		case 4://88200
+			tmp03 |= (0x8 << 24);
+			tmp47 |= (0x7 << 4);
+			break;
+
+		case 5://96000
+			tmp03 |= (0xa << 24);
+			tmp47 |= (0x5 << 4);
+			break;
+
+		case 6://176400
+			tmp03 |= (0xc << 24);
+			tmp47 |= (0x3 << 4);
+			break;
+
+		case 7://192000
+			tmp03 |= (0xe << 24);
+			tmp47 |= (0x1 << 4);
+			break;
+
+		case 8://352.8kHz
+			tmp03 |= (0x1 << 24);
+			break;
+
+		case 9://384kHz
+			tmp03 |= (0x1 << 24);
+			break;
+
+		default:
+			break;
+	}
+	if (USER_TYPE_Audio60958_3 == userType) {
+
+	} else if (USER_TYPE_Audio60958_4 == userType)  {
+		tmp03 |= 0x1;
+		printk(KERN_ERR "%s: err, now NO support userType(%d)", __func__, userType);
+	} else if (USER_TYPE_Audio61937 == userType) {
+		tmp03 |= 0x2;
+	} else {
+		printk(KERN_ERR "%s: err, now NO support userType(%d)", __func__, userType);
+	}
+
+	/////////////////////////////////////////////
+	tmp03 |= (0x1 << 28);//clock Accu: Level I
+	/////////////////////////////////////////////
+
+	/////////////////////////////////////////////
+	tmp03 |= (0x55 << 16);//source num | chs num
+	/////////////////////////////////////////////
+
+	/////////////////////////////////////////////
+	tmp03 |= (0x01 << 8);//categoryCode
+	/////////////////////////////////////////////
+
+	//tmp47 = tmp03;//test
+	printk(KERN_ERR "%s: tmp03=0x%x, tmp47=0x%x\n", __func__, tmp03, tmp47);
+
+	set_dai_reg_base(I2S_SPDIF_NUM);
+	snd_dai_writel(tmp03,SPDIF_CLSTAT);
+	snd_dai_writel(tmp47,SPDIF_CHSTAT);
+
+	printk(KERN_ERR "%s: tmp03=0x%x, tmp47=0x%x\n", __func__,
+		snd_dai_readl(SPDIF_CLSTAT), 
+		snd_dai_readl(SPDIF_CHSTAT));
+}
 
 static int atm7059_dai_mode_set(struct atm7059_pcm_priv *pcm_priv,
-		struct snd_soc_dai *dai)
+		struct snd_soc_dai *dai, int rate)
 {
 	int ret;
 
+	int samplerateCode = get_audio_fs_code(rate);
+	int userType = pcm_priv->userType;
+
 	switch (pcm_priv->output_mode) {
-	case O_MODE_I2S:
-		/*ret = atm7059_i2s_4wire_config(pcm_priv, dai);*/
-		/*snd_dai_writel(snd_dai_readl(PAD_CTL) | (0x1 << 1), PAD_CTL);*/
-		if (dai_mode_i2s_count == 0) {
-//			set_dai_reg_base(GPIO_MFP_NUM);
-//			snd_dai_writel(snd_dai_readl(MFP_CTL0) & ~(0x1 << 2), MFP_CTL0);
-//			snd_dai_writel(snd_dai_readl(MFP_CTL0) & ~(0x3 << 3), MFP_CTL0);
+		case O_MODE_I2S:
+			/*ret = atm7059_i2s_4wire_config(pcm_priv, dai);*/
+			/*snd_dai_writel(snd_dai_readl(PAD_CTL) | (0x1 << 1), PAD_CTL);*/
+			if (dai_mode_i2s_count == 0) {
+				//set_dai_reg_base(GPIO_MFP_NUM);
+				//snd_dai_writel(snd_dai_readl(MFP_CTL0) & ~(0x1 << 2), MFP_CTL0);
+				//snd_dai_writel(snd_dai_readl(MFP_CTL0) & ~(0x3 << 3), MFP_CTL0);
 
-			/* disable i2s tx&rx */
-			set_dai_reg_base(I2S_SPDIF_NUM);
-			snd_dai_writel(snd_dai_readl(I2S_CTL) & ~(0x3 << 0), I2S_CTL);
+				/* disable i2s tx&rx */
+				set_dai_reg_base(I2S_SPDIF_NUM);
+				snd_dai_writel(snd_dai_readl(I2S_CTL) &
+						~(0x3 << 0), I2S_CTL);
 
-			/* reset i2s rx&&tx fifo, avoid left & right channel wrong */
-			snd_dai_writel(snd_dai_readl(I2S_FIFOCTL)
-				& ~(0x3 << 9) & ~0x3, I2S_FIFOCTL);
-			snd_dai_writel(snd_dai_readl(I2S_FIFOCTL)
-				| (0x3 << 9) | 0x3, I2S_FIFOCTL);
+				/* reset i2s rx&&tx fifo, avoid left & right channel wrong */
+				snd_dai_writel(snd_dai_readl(I2S_FIFOCTL)
+						& ~(0x3 << 9) & ~0x3,
+						I2S_FIFOCTL);
+				snd_dai_writel(snd_dai_readl(I2S_FIFOCTL) |
+						(0x3 << 9) | 0x3,
+						I2S_FIFOCTL);
 
-			/* this should before enable rx/tx,
-			or after suspend, data may be corrupt */
-			snd_dai_writel(snd_dai_readl(I2S_CTL) & ~(0x3 << 11), I2S_CTL);
-			snd_dai_writel(snd_dai_readl(I2S_CTL) | (0x1 << 11), I2S_CTL);
-			/* set i2s mode I2S_RX_ClkSel==1 */
-			snd_dai_writel(snd_dai_readl(I2S_CTL) | (0x1 << 10), I2S_CTL);
+				/* this should before enable rx/tx,
+				   or after suspend, data may be corrupt */
+				snd_dai_writel(snd_dai_readl(I2S_CTL) &
+						~(0x3 << 11), I2S_CTL);
+				snd_dai_writel(snd_dai_readl(I2S_CTL) |
+						(0x1 << 11), I2S_CTL);
+				/* set i2s mode I2S_RX_ClkSel==1 */
+				snd_dai_writel(snd_dai_readl(I2S_CTL) |
+						(0x1 << 10), I2S_CTL);
 
-			/* enable i2s rx/tx at the same time */
-			snd_dai_writel(snd_dai_readl(I2S_CTL) | 0x3, I2S_CTL);
+				/* enable i2s rx/tx at the same time */
+				snd_dai_writel(snd_dai_readl(I2S_CTL) |
+						0x3, I2S_CTL);
 
-			/* i2s rx 00: 2.0-Channel Mode */
-			snd_dai_writel(snd_dai_readl(I2S_CTL) & ~(0x3 << 8), I2S_CTL);
-			snd_dai_writel(snd_dai_readl(I2S_CTL) & ~(0x7 << 4), I2S_CTL);
-		}
-		dai_mode_i2s_count++;
-		break;
+				/* i2s rx 00: 2.0-Channel Mode */
+				snd_dai_writel(snd_dai_readl(I2S_CTL) &
+						~(0x3 << 8), I2S_CTL);
+				snd_dai_writel(snd_dai_readl(I2S_CTL) &
+						~(0x7 << 4), I2S_CTL);
+			}
+			dai_mode_i2s_count++;
+			break;
 
-	case O_MODE_HDMI:
-		/* HDMI&SPDIF fifo reset */
-		if (dai_mode_hdmi_count == 0) {   
-            set_dai_reg_base(I2S_SPDIF_NUM);
-			snd_dai_writel(snd_dai_readl(SPDIF_HDMI_CTL) & ~0x3,
-				SPDIF_HDMI_CTL);
-			/* HDMI fifo enable,DRQ enable */
-			snd_dai_writel(snd_dai_readl(SPDIF_HDMI_CTL) |
-				0x102, SPDIF_HDMI_CTL);
-		}
-		dai_mode_hdmi_count++;
-		break;
-	case O_MODE_SPDIF:
-		break;
-	default:
-		return -EINVAL;
+		case O_MODE_HDMI:
+			/* HDMI&SPDIF fifo reset */
+			if (dai_mode_hdmi_count == 0) {   
+				set_dai_reg_base(I2S_SPDIF_NUM);
+				snd_dai_writel(snd_dai_readl(SPDIF_HDMI_CTL) &
+						~0x3,
+						SPDIF_HDMI_CTL);
+				/* HDMI fifo enable,DRQ enable */
+				snd_dai_writel(snd_dai_readl(SPDIF_HDMI_CTL) |
+						0x102, SPDIF_HDMI_CTL);
+			}
+			dai_mode_hdmi_count++;
+			break;
+
+		case O_MODE_SPDIF:
+			if (dai_mode_spdif_count == 0) {   
+				set_dai_reg_base(I2S_SPDIF_NUM);
+
+				/* SPDIF fifo reset */
+				snd_dai_writel(snd_dai_readl(SPDIF_HDMI_CTL) &
+						~0x411, SPDIF_HDMI_CTL);
+				/* SPDIF fifo enable,DRQ enable */
+				snd_dai_writel(snd_dai_readl(SPDIF_HDMI_CTL) |
+						0x411, SPDIF_HDMI_CTL);
+				spdif_channel_status_cfg(samplerateCode,
+						userType);
+
+			}
+			dai_mode_spdif_count++;
+			break;
+
+		default:
+			return -EINVAL;
 	}
 
 	return ret;
@@ -534,6 +703,12 @@ static int atm7059_dai_mode_unset(struct atm7059_pcm_priv *pcm_priv)
 		}
 		break;
 	case O_MODE_SPDIF:
+	 if(dai_mode_spdif_count > 0)
+		dai_mode_spdif_count--;
+		if (dai_mode_spdif_count == 0) {
+			set_dai_reg_base(I2S_SPDIF_NUM);
+			snd_dai_writel(snd_dai_readl(SPDIF_HDMI_CTL) & ~0x411, SPDIF_HDMI_CTL);
+		}
 		break;
 	default:
 		return -EINVAL;
@@ -591,7 +766,7 @@ static int atm7059_dai_hw_params(struct snd_pcm_substream *substream,
 
 	if (SNDRV_PCM_STREAM_PLAYBACK == substream->stream ) {
 		atm7059_dai_clk_set(pcm_priv->output_mode, params_rate(params));
-		atm7059_dai_mode_set(pcm_priv, dai);
+		atm7059_dai_mode_set(pcm_priv, dai,params_rate(params));
 #ifdef CONFIG_SND_UBUNTU		
 		if(pcm_priv->output_mode == O_MODE_I2S)
 		{
@@ -707,7 +882,7 @@ struct snd_soc_dai_driver atm7059_dai = {
 		.channels_max = 8,
 		.rates = ATM7059_STEREO_PLAYBACK_RATES,
 		#ifdef CONFIG_SND_UBUNTU
-		.formats = SNDRV_PCM_FMTBIT_S32_LE,
+		.formats = SNDRV_PCM_FMTBIT_S32_LE | SNDRV_PCM_FMTBIT_S16_LE,
 		#else
 		.formats = SNDRV_PCM_FMTBIT_S16_LE,		
 		#endif

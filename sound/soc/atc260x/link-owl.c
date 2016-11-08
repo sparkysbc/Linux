@@ -315,6 +315,16 @@ static struct snd_soc_dai_link atm7059_atc2603c_link_dai[] = {
 		.platform_name = "atm7059-pcm-audio",
 		.codec_name = "atm7059-hdmi-audio",
 		.ops = &atm7059_link_ops,
+	},
+		{
+		.name = "ATM7059 SPDIF AUDIO",
+		.stream_name = "SPDIF PCM",
+		.cpu_dai_name = "owl-audio-i2s",//"gl5203-audio-i2s",
+		.codec_dai_name = "atm7059-spdif-dai",
+		.init = atm7059_link_snd_init,
+		.platform_name = "atm7059-pcm-audio",
+		.codec_name = "atm7059-spdif-audio",//"atm7059-spdif-audio",
+		.ops = &atm7059_link_ops,
 	}
 };
 
