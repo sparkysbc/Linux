@@ -38,9 +38,7 @@
 
 #include "ethctrl.h"
 #include "des.h"
-
-#include "chipdb.h"
-
+#include "chipdb.h"  //added for chip id
 // test needed
 #include <linux/stddef.h>
 #include <linux/of_gpio.h>
@@ -82,7 +80,8 @@ static struct workqueue_struct *resume_queue = NULL;
 static struct workqueue_struct *power_save_queue = NULL;
 #endif
 
-static char g_default_mac_addr[ETH_MAC_LEN] = {0x00, 0x17, 0xF7, 0x00, 0x00, 0x01};
+//static char g_default_mac_addr[ETH_MAC_LEN] = {0x00, 0x18, 0xFE, 0x61, 0xD5, 0xD6};
+static char g_default_mac_addr[ETH_MAC_LEN] = {0x00, 0x17, 0xF7, 0x01, 0x00, 0x01};
 static struct net_device *g_eth_dev[MAX_DEVICES];
 
 static struct clk *ethernet_clk;
@@ -444,7 +443,7 @@ static void print_mac_address(const char *mac)
     printk(KERN_DEBUG"%s %02x\n", __func__, (unsigned int)mac[i] & 0xFF);
     return;
 }
-
+#if 0
 static int ctox(int c)
 {
 	int tmp;
@@ -567,7 +566,7 @@ static void get_mac_address_by_chip(unsigned char input[MBEDTLS_DES_KEY_SIZE],ch
 	memcpy(mac_address,mac_array,ETH_MAC_LEN);
 	return;
 }
-
+#endif
 extern int read_mi_item(char *name, void *buf, unsigned int count);
 
 /*
@@ -577,8 +576,9 @@ extern int read_mi_item(char *name, void *buf, unsigned int count);
 * 3.the local address,need to set this value in the dts;
 * 4.generate the mac address according to the serial number.
 */
-#define BYTE2BIT(x) ((x)*8)
+/*chip_id based CEM mac id */
 
+#define BYTE2BIT(x) ((x)*8)
 static const char *get_def_mac_addr(struct platform_device *pdev)
 {
     loff_t offset = 0;
@@ -590,13 +590,13 @@ static const char *get_def_mac_addr(struct platform_device *pdev)
 
     for(offset=0;offset < chipdb_size && (chipdb[offset]!=system_serial);offset++) ;
     if(offset == chipdb_size) {
-        printk("error: sparky chip %x%x not found /provisioned, update eth driver\n", system_serial_high, system_serial_low);
+        printk(KERN_ERR"error: sparky chip %x%x not found /provisioned, update eth driver\n", system_serial_high, system_serial_low);
         return g_default_mac_addr;
     }
 
     new_mac = mac_start+offset ;
-    printk("found sparky chip %x%x provisioned", system_serial_high, system_serial_low);
-    printk("idx %lld newmac %llx\n", offset, new_mac);
+    printk(KERN_ALERT"found sparky chip %x%x provisioned", system_serial_high, system_serial_low);
+    printk(KERN_ALERT"idx %lld newmac %llx\n", offset, new_mac);
 
     for(i=ETH_MAC_LEN;i>0;i--) {
         g_default_mac_addr[ETH_MAC_LEN-i] = (new_mac>>BYTE2BIT(i-1)&0xFF) ;
@@ -604,6 +604,136 @@ static const char *get_def_mac_addr(struct platform_device *pdev)
 
     return g_default_mac_addr;
 }
+
+
+/*comented below for chip_id based CEM mac id */
+#if 0
+static const char *get_def_mac_addr(struct platform_device *pdev)
+{
+    struct device_node *np = pdev->dev.of_node;
+    struct file *filp;
+    loff_t offset = 0;
+    char def_mac[20] = "";
+    const char *str;
+    mm_segment_t fs;
+    int len;
+    int ret;
+    unsigned long long system_serial = (unsigned long long)system_serial_low | ((unsigned long long)system_serial_high << 32);
+    mbedtls_des_context ctx;
+    unsigned char key_buff[MBEDTLS_DES_KEY_SIZE] = {1,4,13,21,59,67,69,127};
+    unsigned char input_value[MBEDTLS_DES_KEY_SIZE] = {0};
+    unsigned char output_value[MBEDTLS_DES_KEY_SIZE] = {0};
+
+//#define ETH_MAC_ADDR_BURNED_PATH "/sys/miscinfo/infos/ethmac"
+//#define ETH_MAC_ADDR_BURNED_PATH "/data/mac_address"
+#define ETH_MAC_ADDR_PATH "/config/mac_address.bin"
+#ifdef CONFIG_PLATFORM_UBUNTU
+#define ETH_MAC_ADDR_RANDDOM_PATH "/etc/mac_address_random"
+#else
+#define ETH_MAC_ADDR_RANDDOM_PATH "/data/mac_address_random"
+#endif
+
+    /*filp = filp_open(ETH_MAC_ADDR_BURNED_PATH, O_RDONLY, 0);
+    if (IS_ERR_OR_NULL(filp)) {
+        printk(KERN_ERR"file %s can't be opened\n", ETH_MAC_ADDR_BURNED_PATH);
+    } else {
+        if (!read_mac_address(filp, def_mac, &len)) {
+            parse_mac_address(def_mac, len);
+            printk(KERN_INFO"use burned mac address: ");
+            print_mac_address(g_default_mac_addr);
+            filp_close(filp, current->files);
+            return g_default_mac_addr;
+        }
+        filp_close(filp, current->files);
+    }*/
+    ret = read_mi_item("ETHMAC",def_mac,20);
+    if(ret > 0){
+        printk(KERN_DEBUG"Using the mac address in miscinfo.\n");
+        parse_mac_address(def_mac, ret);
+        return g_default_mac_addr;
+    }
+
+    ret = of_property_read_string(np, "random-mac-address", &str);
+    if (ret) {
+        printk(KERN_INFO"no random-mac-address in dts\n");
+    } else {
+        printk(KERN_INFO"random-mac-address: %s\n", str);
+        if (!strcmp("okay", str))
+            goto random_mac;
+    }
+
+    str = of_get_property(np, "local-mac-address", NULL);
+    if (str == NULL) {
+        printk(KERN_INFO"no local-mac-address in dts\n");
+    } else {
+        printk(KERN_INFO"local-mac-address: ");
+        print_mac_address(str);
+        memcpy(g_default_mac_addr, str, ETH_MAC_LEN);
+        return g_default_mac_addr;
+    }
+
+    //printk(KERN_DEBUG"%s 0x%llx\n",__func__,system_serial);
+    mbedtls_des_init(&ctx);
+    //printk(KERN_DEBUG"key_buff:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n",key_buff[0],key_buff[1],key_buff[2],key_buff[3],key_buff[4],key_buff[5],key_buff[6],key_buff[7]);
+    if(mbedtls_des_key_check_key_parity(key_buff)){
+        mbedtls_des_key_set_parity(key_buff);
+    }
+    mbedtls_des_setkey_enc(&ctx,key_buff);
+    memcpy(input_value,&system_serial,MBEDTLS_DES_KEY_SIZE);
+    //printk(KERN_DEBUG"input_value:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n",input_value[0],input_value[1],input_value[2],input_value[3],input_value[4],input_value[5],input_value[6],input_value[7]);
+    mbedtls_des_crypt_ecb(&ctx,input_value,output_value);
+    //printk(KERN_DEBUG"output_value:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n",output_value[0],output_value[1],output_value[2],output_value[3],output_value[4],output_value[5],output_value[6],output_value[7]);
+    get_mac_address_by_chip(output_value,g_default_mac_addr);
+
+    printk(KERN_DEBUG"use the mac address by chip\n");
+    print_mac_address(g_default_mac_addr);
+    return g_default_mac_addr;
+
+random_mac:
+    filp = filp_open(ETH_MAC_ADDR_PATH, O_RDONLY, 0);
+    if (IS_ERR_OR_NULL(filp)) {
+        printk(KERN_ERR"file %s can't be opened\n", ETH_MAC_ADDR_PATH);
+    } else {
+        if (!read_mac_address(filp, def_mac, &len)) {
+            parse_mac_address(def_mac, len);
+            printk(KERN_INFO"use mac stored in file: ");
+            print_mac_address(g_default_mac_addr);
+            filp_close(filp, current->files);
+            return g_default_mac_addr;
+        }
+        filp_close(filp, current->files);
+    }
+
+    get_random_bytes(def_mac, ETH_MAC_LEN);
+    memcpy(g_default_mac_addr + 3, def_mac + 3, ETH_MAC_LEN - 3);
+
+    fs = get_fs();
+    set_fs(get_ds());
+
+    filp = filp_open(ETH_MAC_ADDR_RANDDOM_PATH, O_RDONLY, 0);
+    if (IS_ERR_OR_NULL(filp)) {
+        filp = filp_open(ETH_MAC_ADDR_RANDDOM_PATH, O_WRONLY | O_CREAT, 0640);
+        if (!IS_ERR_OR_NULL(filp)) {
+            printk(KERN_INFO"use random mac generated: ");
+            print_mac_address(g_default_mac_addr);
+            vfs_write(filp, (char __user *)g_default_mac_addr, ETH_MAC_LEN, &offset);
+            filp_close(filp, current->files);
+        }
+    } else {
+        if (vfs_read(filp, (char __user *)def_mac, ETH_MAC_LEN, &offset)
+            == ETH_MAC_LEN) {
+            memcpy(g_default_mac_addr, def_mac, ETH_MAC_LEN);
+            printk(KERN_INFO"use random mac stored: ");
+            print_mac_address(g_default_mac_addr);
+        }
+        filp_close(filp, current->files);
+    }
+
+    set_fs(fs);
+
+    return g_default_mac_addr;
+}
+#endif
 
 static void print_frame_data(void *frame, int len)
 {
@@ -639,7 +769,7 @@ static void print_tx_bds(ec_priv_t * priv)
         printk(KERN_DEBUG"%03d: 0x%08x\t 0x%08x\t 0x%08x\n", i, (unsigned int) buf->status,(unsigned int) buf->control, (unsigned int) buf->buf_addr);
     }
 }
-
+#if 0
 static void print_rx_bds(ec_priv_t * priv)
 {
     int     i;
@@ -658,7 +788,7 @@ static void print_rx_bds(ec_priv_t * priv)
         printk(KERN_DEBUG"%03d: 0x%08x\t 0x%08x\t 0x%08x\n", i, (unsigned int) buf->status,(unsigned int) buf->control, (unsigned int) buf->buf_addr);
     }
 }
-
+#endif
 void print_phy_register(ec_priv_t *ecp)
 {
 	printk(KERN_DEBUG"phy MII_BMCR: 0x%x\n", (uint)read_phy_reg(ecp, MII_BMCR));
@@ -1996,7 +2126,7 @@ static irqreturn_t ec_netmac_isr(int irq, void *cookie)
     static unsigned long tx_cnt,rx_cnt;
 	unsigned long mac_status;
     int ru_cnt = 0;
-     int i = 0;
+   //  int i = 0;
     intr_bits = EC_STATUS_NIS | EC_STATUS_AIS;
 
     disable_irq_nosync(ecp->mac_irq);
@@ -2074,7 +2204,7 @@ static irqreturn_t ec_netmac_isr(int irq, void *cookie)
 	
     return (IRQ_HANDLED);
 }
-
+#if 0
 /* phy int pin connected to sirq0 */
 static void phy_cable_plug_irq_enable(int level)
 {
@@ -2100,7 +2230,7 @@ static void phy_cable_plug_irq_disable(void)
     printk(KERN_DEBUG"PAD_PULLCTL0: 0x%08x\n", getl(PAD_PULLCTL0));
     printk(KERN_DEBUG"INTC_EXTCTL: 0x%08x\n", getl(INTC_EXTCTL));
 }
-
+#endif
 /**
  * ec_netdev_open -- open ethernet controller
  *
@@ -3239,8 +3369,16 @@ static int ethernet_set_pin_mux(struct platform_device *pdev)
 
 	//printk("MFP_CTL30:0x%x\n", act_readl(MFP_CTL3));
     putl((getl(MFP_CTL3) | 0x1<<30) , MFP_CTL3);
-	putl((getl(PAD_DRV0) & 0xffff3fff) , PAD_DRV0); 
+	//printk("MFP_CTL31:0x%x\n", act_readl(MFP_CTL3));
+	//pr_info("ethernet pinctrl select state successfully\n");
 
+	
+	//pr_info("ethernet pinctrl select state successfully\n");
+
+	putl((getl(PAD_DRV0) & 0xffff3fff) | 0x8000, PAD_DRV0);
+	//printk("PAD_DRV0:0x%x\n", act_readl(PAD_DRV0));
+
+	
 	return ret;
 
 error:
