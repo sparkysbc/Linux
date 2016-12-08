@@ -37,6 +37,7 @@
 #define PCM512x_DSP_GPIO_INPUT    (PCM512x_PAGE_BASE(0) +  10)
 #define PCM512x_MASTER_MODE       (PCM512x_PAGE_BASE(0) +  12)
 #define PCM512x_PLL_REF           (PCM512x_PAGE_BASE(0) +  13)
+#define PCM512x_DAC_REF		  (PCM512x_PAGE_BASE(0) +  14)
 #define PCM512x_PLL_COEFF_0       (PCM512x_PAGE_BASE(0) +  20)
 #define PCM512x_PLL_COEFF_1       (PCM512x_PAGE_BASE(0) +  21)
 #define PCM512x_PLL_COEFF_2       (PCM512x_PAGE_BASE(0) +  22)
@@ -121,6 +122,15 @@
 
 /* Page 0, Register 13 - PLL reference */
 #define PCM512x_SREF (1 << 4)
+
+/* Page 0, Register 14 - DAC reference */
+#define PCM512x_SDAC		(7 << 4)
+#define PCM512x_SDAC_SHIFT 	4
+#define PCM512x_SDAC_MCK	(0 << 4)
+#define PCM512x_SDAC_PLL	(1 << 4)
+#define PCM512x_SDAC_SCK	(3 << 4)
+#define PCM512x_SDAC_BCK	(4 << 4)
+#define PCM512x_SDAC_GPIO	(5 << 4)
 
 /* Page 0, Register 37 - Error detection */
 #define PCM512x_IPLK (1 << 0)

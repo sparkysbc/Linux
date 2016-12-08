@@ -323,33 +323,41 @@ static const struct snd_soc_dapm_route pcm512x_dapm_routes[] = {
 static int pcm512x_set_bias_level(struct snd_soc_codec *codec,
 				  enum snd_soc_bias_level level)
 {
-	struct pcm512x_priv *pcm512x = dev_get_drvdata(codec->dev);
-	int ret;
+	struct regmap *regmap;
+	int ret = 0, i;
 
-	switch (level) {
-	case SND_SOC_BIAS_ON:
-	case SND_SOC_BIAS_PREPARE:
-		break;
+	for (i = 0; i < 2; i++) {
+		regmap = regmap_pcm512x[i];
+		if (regmap == NULL)
+			break; 
 
-	case SND_SOC_BIAS_STANDBY:
-		ret = regmap_update_bits(pcm512x->regmap, PCM512x_POWER,
-					 PCM512x_RQST, 0);
-		if (ret != 0) {
-			dev_err(codec->dev, "Failed to remove standby: %d\n",
-				ret);
-			return ret;
+		switch (level) {
+			case SND_SOC_BIAS_ON:
+			case SND_SOC_BIAS_PREPARE:
+				break;
+
+			case SND_SOC_BIAS_STANDBY:
+				ret = regmap_update_bits(regmap, PCM512x_POWER,
+						PCM512x_RQST, 0);
+				if (ret != 0) {
+					dev_err(codec->dev,
+						"Failed to remove standby: %d\n",
+						ret);
+					return ret;
+				}
+				break;
+
+			case SND_SOC_BIAS_OFF:
+				ret = regmap_update_bits(regmap, PCM512x_POWER,
+						PCM512x_RQST, PCM512x_RQST);
+				if (ret != 0) {
+					dev_err(codec->dev,
+						"Failed to request standby: %d\n",
+						ret);
+					return ret;
+				}
+				break;
 		}
-		break;
-
-	case SND_SOC_BIAS_OFF:
-		ret = regmap_update_bits(pcm512x->regmap, PCM512x_POWER,
-					 PCM512x_RQST, PCM512x_RQST);
-		if (ret != 0) {
-			dev_err(codec->dev, "Failed to request standby: %d\n",
-				ret);
-			return ret;
-		}
-		break;
 	}
 
 	codec->dapm.bias_level = level;
@@ -359,35 +367,66 @@ static int pcm512x_set_bias_level(struct snd_soc_codec *codec,
 static int pcm512x_audio_prepare(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai)
 {
-	int ret = 0, reg_val = 0;
-	struct regmap *regmap = regmap_pcm512x[0];
+	int ret = 0, reg_val = 0, i;
+	struct regmap *regmap;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
 
-	ret = regmap_read(regmap, PCM512x_RATE_DET_4, &reg_val);
-	if (ret) {
-		dev_warn(codec->dev,
-			"Failed to read PCM512x_RATE_DET_4 : %d\n", ret);
-		return ret;
-	}
+	for (i = 0; i < 2; i++) {
+		regmap = regmap_pcm512x[i];
+		if (regmap == NULL)
+			break; 
+		ret = regmap_read(regmap, PCM512x_RATE_DET_4, &reg_val);
+		if (ret) {
+			dev_warn(codec->dev,
+				"Failed to read PCM512x_RATE_DET_4 : %d\n", ret);
+			return ret;
+		}
 
-	if (reg_val & 0x40) {
-		regmap_update_bits(regmap,
-				PCM512x_PLL_REF, PCM512x_SREF, PCM512x_SREF);
-		dev_warn(codec->dev,
-			"PLL is forced to take BCLK as an input clock\n");
-	} else {
-		dev_warn(codec->dev,
-			 "PLL input is on Auto Clock select\n");
-	}
+		if (reg_val & 0x40) {
+			regmap_update_bits(regmap,
+					PCM512x_PLL_REF, PCM512x_SREF, PCM512x_SREF);
 
-	ret = regmap_write(regmap, PCM512x_PLL_EN, PCM512x_PLCK | PCM512x_PLCE);
-	if (ret != 0) {
-		dev_warn(codec->dev,
-				" Failed to enable the PLL :%d\n", ret);
-		return ret;
-	}
+			ret = regmap_write(regmap, 
+					PCM512x_PLL_EN, PCM512x_PLCK | PCM512x_PLCE);
+			if (ret != 0) {
+				dev_warn(codec->dev,
+						" Failed to enable the PLL :%d\n", ret);
+				return ret;
+			}
 
+			dev_warn(codec->dev,
+				"Setting BCLK as input clock \n");
+		} else {
+			ret = regmap_write(regmap, PCM512x_PLL_EN, 0x00);
+
+			if (ret != 0) {
+				dev_warn(codec->dev,
+					" Failed to disable the PLL :%d\n", ret);
+				return ret;
+			}
+			
+			ret = regmap_write(regmap, PCM512x_PLL_REF, 0x00);
+			if (ret != 0) {
+				dev_warn(codec->dev,
+						" Failed to enable the SCK :%d\n", ret);
+				return ret;
+			}
+
+			ret = regmap_write(regmap, PCM512x_DAC_REF, PCM512x_SDAC_SCK);
+                        if (ret != 0) {
+                                dev_warn(codec->dev,
+                                                " Failed to enable the SCK in register 14 :%d\n", ret);
+                                return ret;
+                        }
+
+			dev_warn(codec->dev,
+				 "Setting sCK as input clock disable PLL config \n");
+		}
+			
+//		ret = regmap_write(regmap, 
+//				PCM512x_PLL_EN, PCM512x_PLCK | PCM512x_PLCE);
+	}
 	return 0;
 }
 
@@ -458,17 +497,18 @@ int pcm512x_probe(struct device *dev, struct regmap *regmap)
 
 	dev_set_drvdata(dev, pcm512x);
 	pcm512x->regmap = regmap;
-	if (i2c->addr == 0x4c)
-		regmap_pcm512x[0] = regmap;
-	 else if (i2c->addr == 0x4d)
-		regmap_pcm512x[1] = regmap;
-	/* Reset the device, verifying I/O in the process for I2C */
+		/* Reset the device, verifying I/O in the process for I2C */
 	ret = regmap_write(regmap, PCM512x_RESET,
 			   PCM512x_RSTM | PCM512x_RSTR);
 	if (ret != 0) {
 		dev_err(dev, "Failed to reset device: %d\n", ret);
 		return ret;
 	}
+
+	if (i2c->addr == 0x4c) 
+		regmap_pcm512x[0] = regmap;
+	 else if (i2c->addr == 0x4d)
+		regmap_pcm512x[1] = regmap;
 
 	ret = regmap_write(regmap, PCM512x_RESET, 0);
 	if (ret != 0) {
@@ -542,15 +582,22 @@ EXPORT_SYMBOL_GPL(pcm512x_remove);
 static int pcm512x_suspend(struct device *dev)
 {
 	struct pcm512x_priv *pcm512x = dev_get_drvdata(dev);
-	int ret;
+	int ret = 0, i = 0;
+	struct regmap *regmap;
 
-	ret = regmap_update_bits(pcm512x->regmap, PCM512x_POWER,
-				 PCM512x_RQPD, PCM512x_RQPD);
-	if (ret != 0) {
-		dev_err(dev, "Failed to request power down: %d\n", ret);
-		return ret;
+	for (i = 0; i < 2; i++) {
+		regmap = regmap_pcm512x[i];
+
+		if (regmap == NULL)
+			break; 
+
+		ret = regmap_update_bits(regmap, PCM512x_POWER,
+					 PCM512x_RQPD, PCM512x_RQPD);
+		if (ret != 0) {
+			dev_err(dev, "Failed to request power down: %d\n", ret);
+			return ret;
+		}
 	}
-
 	if (!IS_ERR(pcm512x->sclk))
 		clk_disable_unprepare(pcm512x->sclk);
 
@@ -560,7 +607,8 @@ static int pcm512x_suspend(struct device *dev)
 static int pcm512x_resume(struct device *dev)
 {
 	struct pcm512x_priv *pcm512x = dev_get_drvdata(dev);
-	int ret;
+	int ret = 0, i = 0;
+	struct regmap *regmap;
 
 	if (!IS_ERR(pcm512x->sclk)) {
 		ret = clk_prepare_enable(pcm512x->sclk);
@@ -570,20 +618,26 @@ static int pcm512x_resume(struct device *dev)
 		}
 	}
 
-	regcache_cache_only(pcm512x->regmap, false);
-	ret = regcache_sync(pcm512x->regmap);
-	if (ret != 0) {
-		dev_err(dev, "Failed to sync cache: %d\n", ret);
-		return ret;
-	}
+	for (i = 0; i < 2; i++) {
+		regmap = regmap_pcm512x[i];
 
-	ret = regmap_update_bits(pcm512x->regmap, PCM512x_POWER,
-				 PCM512x_RQPD, 0);
-	if (ret != 0) {
-		dev_err(dev, "Failed to remove power down: %d\n", ret);
-		return ret;
-	}
+		if (regmap == NULL)
+			break; 
 
+		regcache_cache_only(pcm512x->regmap, false);
+		ret = regcache_sync(pcm512x->regmap);
+		if (ret != 0) {
+			dev_err(dev, "Failed to sync cache: %d\n", ret);
+			return ret;
+		}
+
+		ret = regmap_update_bits(pcm512x->regmap, PCM512x_POWER,
+					 PCM512x_RQPD, 0);
+		if (ret != 0) {
+			dev_err(dev, "Failed to remove power down: %d\n", ret);
+			return ret;
+		}
+	}
 	return 0;
 }
 #endif

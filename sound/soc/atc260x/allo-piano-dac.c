@@ -31,16 +31,21 @@
 #include "sndrv-owl.h"
 #include "../codecs/pcm512x.h"
 
- /****** Mute and Shutdown enable **********/
 #define GPIO_NAME_PCM512X_DAC_MUTE	"dac_mute"
 #define PCM512X_DAC_MUTE	OWL_GPIO_PORTB(18)
 
-#define GPIO_NAME_PCM512X_DAC_SHUT	"dac_shut"
-#define PCM512X_DAC_SHUT	OWL_GPIO_PORTB(13)
+#define GPIO_NAME_PCM512X_HEAD_SHUT	"dac_shut"
+#define PCM512X_HEAD_SHUT	OWL_GPIO_PORTB(13)
 
 #define GPIO_NAME_PCM512X_AMP_SHUT	"amp_shut"
 #define PCM512X_AMP_SHUT	OWL_GPIO_PORTB(31)
 
+#define GPIO_NAME_PCM512X_AMP_MUTE	"amp_mute"
+#define PCM512X_AMP_MUTE	OWL_GPIO_PORTB(17)
+
+static bool digital_gain_0db_limit = true;
+module_param(digital_gain_0db_limit, bool, 0);
+MODULE_PARM_DESC(digital_gain_0db_limit, "Set the max volume");
 
 static int snd_allo_piano_dac_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params)
@@ -57,7 +62,17 @@ static struct snd_soc_ops allo_pianodac_ops = {
  */
 static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 {
-	snd_dbg("snd_allo_piano_dac_init() called\n");
+	int ret = 0;
+
+	if (digital_gain_0db_limit) {
+		struct snd_soc_codec *codec = rtd->codec;
+
+		ret = snd_soc_limit_volume(codec, "Digital Playback Volume",
+				207);
+		if (ret < 0)
+			dev_warn(codec->dev,
+				"Failed to set volume limit: %d\n", ret);
+	}
 
 	return 0;
 }
@@ -84,57 +99,54 @@ static struct platform_device *snd_allo_piano_link_device_pcm512x;
 static int __init snd_allo_piano_link_init(void)
 {
 	int ret = 0;
-	int gpio_ret = 0;
 
 	snd_allo_piano_link_device_pcm512x =
 				platform_device_alloc("soc-audio", 1);
 	if (!snd_allo_piano_link_device_pcm512x) {
 		snd_err("ASoC: Platform device allocation failed\n");
-		ret = -ENOMEM;
+		return -ENOMEM;
 	}
 
 	platform_set_drvdata(snd_allo_piano_link_device_pcm512x,
-				&snd_soc_allo_pianodac);
+			&snd_soc_allo_pianodac);
 	ret = platform_device_add(snd_allo_piano_link_device_pcm512x);
 	if (ret) {
 		snd_err("ASoC: Platform device allocation failed\n");
 		goto platform_device_add_failed;
 	}
 
-	/****** Configure Mute and Shutdown for DAC and Amplifier board ******/
-	/*** configure the GPIOB pins ***/
-	act_setl(act_readl(MFP_CTL1) | (0x1 << 22), MFP_CTL1);
+	/** Configure Mute and Shutdown for DAC and Amplifier board **/
+	act_setl(act_readl(MFP_CTL1) | (0x1 << 22), MFP_CTL1); /* GPIOB pins */
 
-	/********** Configure the Mute pins ********/
-	gpio_ret = gpio_request(PCM512X_DAC_MUTE, GPIO_NAME_PCM512X_DAC_MUTE);
-
-	if (gpio_ret < 0) {
-		pr_err("%s: DAC mute control %d request failed!\n",
-				__func__, PCM512X_DAC_MUTE);
-		return 0;
+	/** Configure Mute pin **/
+	ret = gpio_request(PCM512X_DAC_MUTE, GPIO_NAME_PCM512X_DAC_MUTE);
+	if (ret < 0) {
+		pr_err("DAC mute control %d request failed!\n",
+				PCM512X_DAC_MUTE);
+		goto platform_device_add_failed;
 	}
 	gpio_direction_output(PCM512X_DAC_MUTE, 1);
 
-	/************ configure the Shutdown pins *****/
-	gpio_ret = gpio_request(PCM512X_DAC_SHUT, GPIO_NAME_PCM512X_DAC_SHUT);
-
-	if (gpio_ret < 0) {
-		pr_err("%s: DAC shutdown control %d request failed!\n",
-				__func__, PCM512X_DAC_SHUT);
-		return 0;
+	/** configure Headphone Shutdown pin *****/
+	if (gpio_request(PCM512X_HEAD_SHUT, GPIO_NAME_PCM512X_HEAD_SHUT) < 0) {
+		pr_err("Headphone shutdown control %d request failed!\n",
+				PCM512X_HEAD_SHUT);
 	}
-	gpio_direction_output(PCM512X_DAC_SHUT, 1);
+	gpio_direction_output(PCM512X_HEAD_SHUT, 1);
 
-	gpio_ret = 0;
-
-	gpio_ret = gpio_request(PCM512X_AMP_SHUT, GPIO_NAME_PCM512X_AMP_SHUT);
-
-	if (gpio_ret < 0) {
-		pr_err("%s: AMP shutdown control %d request failed!\n",
-				__func__, PCM512X_AMP_SHUT);
-		return 0;
+	/** configure Amp Shutdown pin **/
+	if (gpio_request(PCM512X_AMP_SHUT, GPIO_NAME_PCM512X_AMP_SHUT) < 0) {
+		pr_err("AMP shutdown control %d request failed!\n",
+				PCM512X_AMP_SHUT);
 	}
 	gpio_direction_output(PCM512X_AMP_SHUT, 1);
+
+	/** configure Amp Mute pin **/
+	if (gpio_request(PCM512X_AMP_MUTE, GPIO_NAME_PCM512X_AMP_MUTE) < 0) {
+		pr_err("AMP Mute control %d request failed!\n",
+				PCM512X_AMP_MUTE);
+	}
+	gpio_direction_output(PCM512X_AMP_MUTE, 0);
 
 	return 0;
 

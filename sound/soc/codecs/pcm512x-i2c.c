@@ -20,22 +20,12 @@
 
 #include "pcm512x.h"
 
-#if 0
-#include <linux/24c32.h>
-#endif 
 static int pcm512x_i2c_probe(struct i2c_client *i2c,
 			     const struct i2c_device_id *id)
 {
 	struct regmap *regmap;
 	struct regmap_config config = pcm512x_regmap;
-#if 0
-	if(PCM5122_ID == dac_id) {
-	
-	//int ret = 0;
-	//ret = cat24c32_read_id();	
-	//printk("\n CEM ret : 0x%x ",ret);
-	//if (PCM5122_ID == ret) {
-#endif	
+
 	/* msb needs to be set to enable auto-increment of addresses */
 	config.read_flag_mask = 0x80;
 	config.write_flag_mask = 0x80;
@@ -43,19 +33,12 @@ static int pcm512x_i2c_probe(struct i2c_client *i2c,
 	regmap = devm_regmap_init_i2c(i2c, &config);
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
-	printk("PCM512x_i2c_probe...*************  addr: %x \n",i2c->addr);
 	return pcm512x_probe(&i2c->dev, regmap);
-#if 0
-	} else {
-	 return 0;
-	}
-#endif 
 }
 
 static int pcm512x_i2c_remove(struct i2c_client *i2c)
 {
 	pcm512x_remove(&i2c->dev);
-	printk("PCM512x_i2c_remove over addr: %x \n",i2c->addr);
 	return 0;
 }
 

@@ -15,6 +15,7 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/gpio.h>
+#include <mach/gpio.h>
 #include <linux/regulator/consumer.h>
 #include <linux/time.h>
 #include <linux/delay.h>
@@ -25,7 +26,14 @@
 extern int atc2603a_audio_get_pmu_status(void);
 extern int atc2603c_audio_get_pmu_status(void);
 
+#define GPIO_NAME_ATC260X_HEAD_SHUT     "atc_shut"
+#define	ATC260X_HEAD_SHUT       OWL_GPIO_PORTB(13)
 
+#define GPIO_NAME_ATC260X_AMP_SHUT      "amp_shut"
+#define ATC260X_AMP_SHUT        OWL_GPIO_PORTB(31)
+
+#define GPIO_NAME_ATC260X_AMP_MUTE      "amp_mute"
+#define ATC260X_AMP_MUTE        OWL_GPIO_PORTB(17)
 
 #define SOUND_MAJOR		14
 #define SNDRV_MAJOR		SOUND_MAJOR
@@ -439,7 +447,6 @@ static int __init atm7059_link_init(void)
 
 	snd_err("atm7059_link_init\n");
 
-
 	//20141013 yuchen: check pmu type to select correct codec param
 	pmu_type = atc2603a_audio_get_pmu_status();
 	if(pmu_type == ATC260X_ICTYPE_2603A)
@@ -467,11 +474,9 @@ static int __init atm7059_link_init(void)
 	}
 
     /*****************20151012 david add***************/ 
-    printk(KERN_ERR"%s,%d\n", __func__, __LINE__);
     i2s_switch_gpio_num =
         atm7059_audio_gpio_init(dn, i2s_switch_gpio_name, &i2s_switch_gpio_level);
     if(i2s_switch_gpio_num > 0){
-        printk(KERN_ERR"%s,%d,num:%d\n", __func__, __LINE__, i2s_switch_gpio_num);
         i2s_switch_gpio_active = (i2s_switch_gpio_level & OF_GPIO_ACTIVE_LOW); 
 	    gpio_direction_output(i2s_switch_gpio_num, i2s_switch_gpio_active);
     }
@@ -591,8 +596,31 @@ static int __init atm7059_link_init(void)
 			goto device_create_file_failed;
 		}
 	}
-	
 
+	/** GPIO Enable for configuring Amplifier & Headphone **/
+        act_setl(act_readl(MFP_CTL1) | (0x1 << 22), MFP_CTL1); /* GPIOB pins */
+
+	/** configure Headphone Shutdown pin **/
+        if (gpio_request(ATC260X_HEAD_SHUT, GPIO_NAME_ATC260X_HEAD_SHUT) < 0) {
+		pr_err("Headphone shutdown control %d request failed!\n",
+				ATC260X_HEAD_SHUT);
+	}
+        gpio_direction_output(ATC260X_HEAD_SHUT, 1);
+	
+	/** configure Amp Shutdown pin **/
+	if (gpio_request(ATC260X_AMP_SHUT, GPIO_NAME_ATC260X_AMP_SHUT) < 0) {
+		pr_err("AMP shutdown control %d request failed!\n",
+				ATC260X_AMP_SHUT);
+	}
+        gpio_direction_output(ATC260X_AMP_SHUT, 1);
+
+	/** configure Amp Mute pin **/
+        if (gpio_request(ATC260X_AMP_MUTE, GPIO_NAME_ATC260X_AMP_MUTE) < 0) {
+		pr_err("AMP Mute control %d request failed!\n",
+				ATC260X_AMP_MUTE);
+	}
+        gpio_direction_output(ATC260X_AMP_MUTE, 0);
+	
 	return 0;
 
 device_create_file_failed:
