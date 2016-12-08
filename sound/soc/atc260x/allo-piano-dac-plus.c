@@ -62,11 +62,11 @@ struct dsp_code {
 };
 
 struct glb_pool {
-        struct mutex lock;
-        unsigned int set_lowpass;
-        unsigned int set_mode;
-        unsigned int set_rate;
-        unsigned int dsp_page_number;
+	struct mutex lock;
+	unsigned int set_lowpass;
+	unsigned int set_mode;
+	unsigned int set_rate;
+	unsigned int dsp_page_number;
 };
 
 static const char *const allo_piano_mode_texts[] = {
@@ -171,14 +171,15 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 			if (dsp_code_read->offset == 0) {
 				glb_ptr->dsp_page_number = dsp_code_read->val;
 				ret = pcm512x_set_reg(dac,
-                                        PCM512x_PAGE_BASE(0),
-                                        dsp_code_read->val);
-					
+						PCM512x_PAGE_BASE(0),
+						dsp_code_read->val);
+
 			} else if (dsp_code_read->offset != 0) {
 				ret = pcm512x_set_reg(dac,
-                                        (PCM512x_PAGE_BASE(glb_ptr->dsp_page_number) +
-                                        dsp_code_read->offset),
-                                        dsp_code_read->val);
+						(PCM512x_PAGE_BASE(
+						glb_ptr->dsp_page_number) +
+						dsp_code_read->offset),
+						dsp_code_read->val);
 			}
 			if (ret < 0) {
 				dev_err(codec->dev,
@@ -201,8 +202,8 @@ static int snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 
 	mutex_lock(&glb_ptr->lock);
 
-	ret = __snd_allo_piano_dsp_program(rtd,
-				mode, rate, lowpass);
+	ret = __snd_allo_piano_dsp_program(rtd, mode, rate, lowpass);
+
 	mutex_unlock(&glb_ptr->lock);
 
 	return ret;
@@ -364,13 +365,13 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int ret = 0;
 	struct snd_soc_card *card = rtd->card;
-        struct glb_pool *glb_ptr;
+	struct glb_pool *glb_ptr;
 
-        glb_ptr = kzalloc(sizeof(struct glb_pool), GFP_KERNEL);
-        if (!glb_ptr)
-                return -ENOMEM;
+	glb_ptr = kzalloc(sizeof(struct glb_pool), GFP_KERNEL);
+	if (!glb_ptr)
+		return -ENOMEM;
 
-        card->drvdata = glb_ptr;
+	card->drvdata = glb_ptr;
 
 	mutex_init(&glb_ptr->lock);
 
@@ -405,9 +406,8 @@ static int snd_allo_piano_dac_hw_params(struct snd_pcm_substream *substream,
 				"Failed to set volume limit: %d\n", ret);
 	}
 
-	ret = snd_allo_piano_dsp_program(rtd, glb_ptr->set_mode, rate, glb_ptr->set_lowpass);
-	if (ret < 0)
-		return ret;
+	ret = snd_allo_piano_dsp_program(rtd, glb_ptr->set_mode,
+					rate, glb_ptr->set_lowpass);
 
 	return ret;
 }
@@ -506,6 +506,11 @@ platform_device_add_failed:
 
 static void __exit atm7059_link_exit(void)
 {
+	struct snd_soc_card *card;
+
+	card = platform_get_drvdata(atm7059_link_snd_device_pcm512x);
+
+	kfree(&card->drvdata);
 	platform_device_unregister(atm7059_link_snd_device_pcm512x);
 }
 

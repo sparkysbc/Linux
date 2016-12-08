@@ -329,7 +329,7 @@ static int pcm512x_set_bias_level(struct snd_soc_codec *codec,
 	for (i = 0; i < 2; i++) {
 		regmap = regmap_pcm512x[i];
 		if (regmap == NULL)
-			break; 
+			break;
 
 		switch (level) {
 			case SND_SOC_BIAS_ON:
@@ -375,58 +375,58 @@ static int pcm512x_audio_prepare(struct snd_pcm_substream *substream,
 	for (i = 0; i < 2; i++) {
 		regmap = regmap_pcm512x[i];
 		if (regmap == NULL)
-			break; 
+			break;
 		ret = regmap_read(regmap, PCM512x_RATE_DET_4, &reg_val);
 		if (ret) {
 			dev_warn(codec->dev,
-				"Failed to read PCM512x_RATE_DET_4 : %d\n", ret);
+				"Failed to read PCM512x_RATE_DET_4: %d\n",
+				ret);
 			return ret;
 		}
 
 		if (reg_val & 0x40) {
-			regmap_update_bits(regmap,
-					PCM512x_PLL_REF, PCM512x_SREF, PCM512x_SREF);
+			regmap_update_bits(regmap, PCM512x_PLL_REF,
+						PCM512x_SREF, PCM512x_SREF);
 
-			ret = regmap_write(regmap, 
-					PCM512x_PLL_EN, PCM512x_PLCK | PCM512x_PLCE);
+			ret = regmap_write(regmap, PCM512x_PLL_EN,
+						PCM512x_PLCK | PCM512x_PLCE);
 			if (ret != 0) {
 				dev_warn(codec->dev,
-						" Failed to enable the PLL :%d\n", ret);
+					"Failed to enable the PLL :%d\n", ret);
 				return ret;
 			}
 
 			dev_warn(codec->dev,
-				"Setting BCLK as input clock \n");
+				"Setting BCLK as input clock\n");
 		} else {
 			ret = regmap_write(regmap, PCM512x_PLL_EN, 0x00);
 
 			if (ret != 0) {
 				dev_warn(codec->dev,
-					" Failed to disable the PLL :%d\n", ret);
+					"Failed to disable the PLL :%d\n", ret);
 				return ret;
 			}
-			
+
 			ret = regmap_write(regmap, PCM512x_PLL_REF, 0x00);
 			if (ret != 0) {
 				dev_warn(codec->dev,
-						" Failed to enable the SCK :%d\n", ret);
+					"Failed to enable the SCK :%d\n", ret);
 				return ret;
 			}
 
-			ret = regmap_write(regmap, PCM512x_DAC_REF, PCM512x_SDAC_SCK);
-                        if (ret != 0) {
-                                dev_warn(codec->dev,
-                                                " Failed to enable the SCK in register 14 :%d\n", ret);
-                                return ret;
-                        }
+			ret = regmap_write(regmap, PCM512x_DAC_REF,
+						PCM512x_SDAC_SCK);
+			if (ret != 0) {
+				dev_warn(codec->dev,
+					"Failed to enable the SCK :%d\n", ret);
+				return ret;
+			}
 
 			dev_warn(codec->dev,
-				 "Setting sCK as input clock disable PLL config \n");
+				"Setting SCK as input clock & disable PLL\n");
 		}
-			
-//		ret = regmap_write(regmap, 
-//				PCM512x_PLL_EN, PCM512x_PLCK | PCM512x_PLCE);
 	}
+
 	return 0;
 }
 
@@ -505,7 +505,7 @@ int pcm512x_probe(struct device *dev, struct regmap *regmap)
 		return ret;
 	}
 
-	if (i2c->addr == 0x4c) 
+	if (i2c->addr == 0x4c)
 		regmap_pcm512x[0] = regmap;
 	 else if (i2c->addr == 0x4d)
 		regmap_pcm512x[1] = regmap;
@@ -589,7 +589,7 @@ static int pcm512x_suspend(struct device *dev)
 		regmap = regmap_pcm512x[i];
 
 		if (regmap == NULL)
-			break; 
+			break;
 
 		ret = regmap_update_bits(regmap, PCM512x_POWER,
 					 PCM512x_RQPD, PCM512x_RQPD);
@@ -622,7 +622,7 @@ static int pcm512x_resume(struct device *dev)
 		regmap = regmap_pcm512x[i];
 
 		if (regmap == NULL)
-			break; 
+			break;
 
 		regcache_cache_only(pcm512x->regmap, false);
 		ret = regcache_sync(pcm512x->regmap);
