@@ -366,7 +366,7 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_card *card = rtd->card;
         struct glb_pool *glb_ptr;
 
-        glb_ptr = kzmalloc(sizeof(struct glb_pool), GFP_KERNEL);
+        glb_ptr = kzalloc(sizeof(struct glb_pool), GFP_KERNEL);
         if (!glb_ptr)
                 return -ENOMEM;
 
@@ -506,7 +506,6 @@ platform_device_add_failed:
 
 static void __exit atm7059_link_exit(void)
 {
-        kfree (glb_ptr);
 	platform_device_unregister(atm7059_link_snd_device_pcm512x);
 }
 
