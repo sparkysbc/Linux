@@ -624,14 +624,14 @@ static int pcm512x_resume(struct device *dev)
 		if (regmap == NULL)
 			break;
 
-		regcache_cache_only(pcm512x->regmap, false);
-		ret = regcache_sync(pcm512x->regmap);
+		regcache_cache_only(regmap, false);
+		ret = regcache_sync(regmap);
 		if (ret != 0) {
 			dev_err(dev, "Failed to sync cache: %d\n", ret);
 			return ret;
 		}
 
-		ret = regmap_update_bits(pcm512x->regmap, PCM512x_POWER,
+		ret = regmap_update_bits(regmap, PCM512x_POWER,
 					 PCM512x_RQPD, 0);
 		if (ret != 0) {
 			dev_err(dev, "Failed to remove power down: %d\n", ret);
