@@ -51,6 +51,7 @@
 #define PCM512X_AMP_MUTE        OWL_GPIO_PORTB(17)
 
 static bool digital_gain_0db_limit = true;
+
 module_param(digital_gain_0db_limit, bool, 0);
 MODULE_PARM_DESC(digital_gain_0db_limit, "Set the max volume");
 
@@ -121,22 +122,25 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 	else
 		rate = 192000;
 
+	if ((lowpass > 14) || (lowpass < 0))
+		lowpass = 3;
+	if ((mode > 2) || (mode < 0))
+		mode = 0;
+
 	/* same configuration loaded */
 	if ((rate == glb_ptr->set_rate) && (lowpass == glb_ptr->set_lowpass)
 			&& (mode == glb_ptr->set_mode))
 		return 0;
 
-	glb_ptr->set_rate = rate;
-	glb_ptr->set_mode = mode;
-
 	if (mode == 0) { /* 2.0 */
 		ret = pcm512x_set_reg(1, PCM512x_MUTE, 0x11);
+		glb_ptr->set_rate = rate;
+		glb_ptr->set_mode = mode;
+		glb_ptr->set_lowpass = lowpass;
 		return 1;
 	} else {
 		ret = pcm512x_set_reg(1, PCM512x_MUTE, 0x00);
 	}
-
-	glb_ptr->set_lowpass = lowpass;
 
 	for (dac = 0; dac < NUM_CODECS; dac++) {
 		struct dsp_code *dsp_code_read;
@@ -146,23 +150,22 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 		if (dac == 0) { /* high */
 			sprintf(firmware_name,
 				"allo/piano/2.2/allo-piano-dsp-%d-%d-%d.bin",
-				rate, ((glb_ptr->set_lowpass * 10) + 60), dac);
+				rate, ((lowpass * 10) + 60), dac);
 		} else { /* low */
 			sprintf(firmware_name,
 				"allo/piano/2.%d/allo-piano-dsp-%d-%d-%d.bin",
-				glb_ptr->set_mode, rate,
-				((glb_ptr->set_lowpass * 10) + 60), dac);
+				mode, rate, ((lowpass * 10) + 60), dac);
 		}
 
 		dev_info(codec->dev, "Dsp Firmware File Name: %s\n",
-			firmware_name);
+				firmware_name);
 
 		ret = request_firmware(&fw, firmware_name, codec->dev);
 		if (ret < 0) {
 			dev_err(codec->dev,
-				"Error: AlloPiano Firmware %s missing. %d\n",
+				"Error: Allo Piano Firmware %s missing. %d\n",
 				firmware_name, ret);
-			continue;
+			goto err;
 		}
 
 		while (i < (fw->size - 1)) {
@@ -184,13 +187,20 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 			if (ret < 0) {
 				dev_err(codec->dev,
 					"Failed to write Register: %d\n", ret);
-				break;
+				release_firmware(fw);
+				goto err;
 			}
 			i = i + 3;
 		}
 		release_firmware(fw);
 	}
+	glb_ptr->set_rate = rate;
+	glb_ptr->set_mode = mode;
+	glb_ptr->set_lowpass = lowpass;
 	return 1;
+
+err:
+	return ret;
 }
 
 static int snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
@@ -227,9 +237,9 @@ static int snd_allo_piano_mode_put(struct snd_kcontrol *kcontrol,
 	struct glb_pool *glb_ptr = card->drvdata;
 
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
-	return(snd_allo_piano_dsp_program(rtd,
+	return snd_allo_piano_dsp_program(rtd,
 				ucontrol->value.integer.value[0],
-				glb_ptr->set_rate, glb_ptr->set_lowpass));
+				glb_ptr->set_rate, glb_ptr->set_lowpass);
 }
 
 static int snd_allo_piano_lowpass_get(struct snd_kcontrol *kcontrol,
@@ -250,9 +260,9 @@ static int snd_allo_piano_lowpass_put(struct snd_kcontrol *kcontrol,
 	struct glb_pool *glb_ptr = card->drvdata;
 
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
-	return(snd_allo_piano_dsp_program(rtd,
+	return snd_allo_piano_dsp_program(rtd,
 				glb_ptr->set_mode, glb_ptr->set_rate,
-				ucontrol->value.integer.value[0]));
+				ucontrol->value.integer.value[0]);
 }
 
 static int pcm512x_get_reg_sub(struct snd_kcontrol *kcontrol,
@@ -273,9 +283,9 @@ static int pcm512x_get_reg_sub(struct snd_kcontrol *kcontrol,
 		return ret;
 
 	ucontrol->value.integer.value[0] =
-			(~(left_val >> mc->shift)) & mc->max;
+				(~(left_val >> mc->shift)) & mc->max;
 	ucontrol->value.integer.value[1] =
-			(~(right_val >> mc->shift)) & mc->max;
+				(~(right_val >> mc->shift)) & mc->max;
 
 	return 0;
 }
@@ -303,6 +313,7 @@ static int pcm512x_set_reg_sub(struct snd_kcontrol *kcontrol,
 
 	return 1;
 }
+
 static int pcm512x_get_reg_sub_switch(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
@@ -379,7 +390,7 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 		struct snd_soc_codec *codec = rtd->codec;
 
 		ret = snd_soc_limit_volume(codec, "Digital Playback Volume",
-				207);
+						207);
 		if (ret < 0)
 			dev_warn(codec->dev,
 				"Failed to set volume limit: %d\n", ret);
@@ -388,8 +399,9 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
-static int snd_allo_piano_dac_hw_params(struct snd_pcm_substream *substream,
-	struct snd_pcm_hw_params *params)
+static int snd_allo_piano_dac_hw_params(
+		struct snd_pcm_substream *substream,
+		struct snd_pcm_hw_params *params)
 {
 	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -417,18 +429,18 @@ static struct snd_soc_ops allo_pianodac_ops = {
 };
 
 static struct snd_soc_dai_link allo_piano_dac_link_dai[] = {
-		{
-			.name = "PianoDACPlus",
-			.stream_name = "PianoDACPlus",
-			.cpu_dai_name = "owl-audio-i2s",
-			.codec_dai_name = "pcm512x-hifi",
-			.init = snd_allo_piano_dac_init,
-			.platform_name = "atm7059-pcm-audio",
-			.codec_name = "pcm512x.2-004c",
-			.ops = &allo_pianodac_ops,
-			.init	= snd_allo_piano_dac_init,
-		},
-	};
+	{
+		.name = "PianoDACPlus",
+		.stream_name = "PianoDACPlus",
+		.cpu_dai_name = "owl-audio-i2s",
+		.codec_dai_name = "pcm512x-hifi",
+		.init = snd_allo_piano_dac_init,
+		.platform_name = "atm7059-pcm-audio",
+		.codec_name = "pcm512x.2-004c",
+		.ops = &allo_pianodac_ops,
+		.init	= snd_allo_piano_dac_init,
+	},
+};
 
 static struct snd_soc_card snd_soc_allo_pianodac = {
 	.name = "PianoDACPlus",
