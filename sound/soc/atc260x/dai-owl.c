@@ -882,7 +882,7 @@ struct snd_soc_dai_driver atm7059_dai = {
 		.channels_max = 8,
 		.rates = ATM7059_STEREO_PLAYBACK_RATES,
 		#ifdef CONFIG_SND_UBUNTU
-		.formats = SNDRV_PCM_FMTBIT_S32_LE | SNDRV_PCM_FMTBIT_S16_LE,
+		.formats = SNDRV_PCM_FMTBIT_S32_LE,
 		#else
 		.formats = SNDRV_PCM_FMTBIT_S16_LE,		
 		#endif
