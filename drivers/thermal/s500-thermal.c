@@ -37,8 +37,13 @@
 #include <linux/cpu_cooling.h>
 #include <linux/of.h>
 #include <linux/io.h>
+#include <linux/gpio.h>
+#include <mach/gpio.h>
+#include <linux/delay.h>
 /* Owl generic registers */
 #define OWL_TMU_DEF_CODE_TO_TEMP_OFFSET	50
+
+#define RUN_LED OWL_GPIO_PORTD(18)
 
 /* atm7059a specific registers */
 
@@ -425,6 +430,7 @@ static void owl_unregister_thermal(void)
  * The unit of the temperature is degree Celsius.
  * T = (838.45*5.068/(1024*12/count+7.894)-162+offset
  */
+static unsigned int led_stat=0;
 static int offset=0;
 static int code_to_temp(struct owl_tmu_data *data, u32 temp_code)
 {
@@ -434,6 +440,8 @@ static int code_to_temp(struct owl_tmu_data *data, u32 temp_code)
 	tmp1 = tmp1/tmp2;
 	tmp1 = tmp1 - 162 + offset;
 	// printk(KERN_DEBUG "temp:%d\n", tmp1);
+	gpio_direction_output(RUN_LED , led_stat);
+	led_stat=!led_stat;
 	return tmp1;
 }
 
