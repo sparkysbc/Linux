@@ -47,9 +47,37 @@ static bool digital_gain_0db_limit = true;
 module_param(digital_gain_0db_limit, bool, 0);
 MODULE_PARM_DESC(digital_gain_0db_limit, "Set the max volume");
 
+static bool glb_mclk = 1;
+module_param(glb_mclk, bool, 0);
+MODULE_PARM_DESC(glb_mclk, "Used to disable the MCLK clock");
+
 static int snd_allo_piano_dac_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params)
 {
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	int dac = 0, val = 0;
+
+	if (!glb_mclk) {
+		snd_soc_write(rtd->codec, PCM512x_PLL_EN, 0x01);
+		snd_soc_write(rtd->codec, PCM512x_PLL_REF, (1 << 4));
+
+		dev_info(rtd->codec->dev,
+				"Force Set BCLK as input clock & Enable PLL\n");
+	} else {
+		val = snd_soc_read(rtd->codec, PCM512x_RATE_DET_4);
+		if(val & 0x40) {
+			snd_soc_write(rtd->codec, PCM512x_PLL_EN, 0x01);
+			snd_soc_write(rtd->codec, PCM512x_PLL_REF, (1 << 4));
+			dev_info(rtd->codec->dev,
+					"Setting BCLK as input clock & Enable PLL\n");
+		} else {
+			snd_soc_write(rtd->codec, PCM512x_PLL_EN, 0x00);
+			snd_soc_write(rtd->codec, PCM512x_PLL_REF, 0x00);
+			dev_info(rtd->codec->dev,
+					"Setting SCLK as input clock & disabled PLL\n");
+		}
+	}
+
 	return 0;
 }
 
