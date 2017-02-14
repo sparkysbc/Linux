@@ -364,76 +364,6 @@ static int pcm512x_set_bias_level(struct snd_soc_codec *codec,
 	return 0;
 }
 
-static int pcm512x_audio_prepare(struct snd_pcm_substream *substream,
-		struct snd_soc_dai *dai)
-{
-	int ret = 0, reg_val = 0, i;
-	struct regmap *regmap;
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
-
-	for (i = 0; i < 2; i++) {
-		regmap = regmap_pcm512x[i];
-		if (regmap == NULL)
-			break;
-		ret = regmap_read(regmap, PCM512x_RATE_DET_4, &reg_val);
-		if (ret) {
-			dev_warn(codec->dev,
-				"Failed to read PCM512x_RATE_DET_4: %d\n",
-				ret);
-			return ret;
-		}
-
-		if (reg_val & 0x40) {
-			regmap_update_bits(regmap, PCM512x_PLL_REF,
-						PCM512x_SREF, PCM512x_SREF);
-
-			ret = regmap_write(regmap, PCM512x_PLL_EN,
-						PCM512x_PLCK | PCM512x_PLCE);
-			if (ret != 0) {
-				dev_warn(codec->dev,
-					"Failed to enable the PLL :%d\n", ret);
-				return ret;
-			}
-
-			dev_warn(codec->dev,
-				"Setting BCLK as input clock\n");
-		} else {
-			ret = regmap_write(regmap, PCM512x_PLL_EN, 0x00);
-
-			if (ret != 0) {
-				dev_warn(codec->dev,
-					"Failed to disable the PLL :%d\n", ret);
-				return ret;
-			}
-
-			ret = regmap_write(regmap, PCM512x_PLL_REF, 0x00);
-			if (ret != 0) {
-				dev_warn(codec->dev,
-					"Failed to enable the SCK :%d\n", ret);
-				return ret;
-			}
-
-			ret = regmap_write(regmap, PCM512x_DAC_REF,
-						PCM512x_SDAC_SCK);
-			if (ret != 0) {
-				dev_warn(codec->dev,
-					"Failed to enable the SCK :%d\n", ret);
-				return ret;
-			}
-
-			dev_warn(codec->dev,
-				"Setting SCK as input clock & disable PLL\n");
-		}
-	}
-
-	return 0;
-}
-
-struct snd_soc_dai_ops pcm512x_aif_dai_ops = {
-	.prepare = pcm512x_audio_prepare,
-};
-
 static struct snd_soc_dai_driver pcm512x_dai = {
 	.name = "pcm512x-hifi",
 	.playback = {
@@ -445,7 +375,6 @@ static struct snd_soc_dai_driver pcm512x_dai = {
 			   SNDRV_PCM_FMTBIT_S24_LE |
 			   SNDRV_PCM_FMTBIT_S32_LE
 	},
-	.ops = &pcm512x_aif_dai_ops,
 };
 
 static struct snd_soc_codec_driver pcm512x_codec_driver = {

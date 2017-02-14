@@ -55,6 +55,9 @@ static bool digital_gain_0db_limit = true;
 module_param(digital_gain_0db_limit, bool, 0);
 MODULE_PARM_DESC(digital_gain_0db_limit, "Set the max volume");
 
+static bool glb_mclk = 1;
+module_param(glb_mclk, bool, 0);
+MODULE_PARM_DESC(glb_mclk, "Used to disable the MCLK clock");
 
 struct dsp_code {
 	char i2c_addr;
@@ -133,13 +136,13 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 		return 0;
 
 	if (mode == 0) { /* 2.0 */
-		ret = pcm512x_set_reg(1, PCM512x_MUTE, 0x11);
+		pcm512x_set_reg(1, PCM512x_MUTE, 0x11);
 		glb_ptr->set_rate = rate;
 		glb_ptr->set_mode = mode;
 		glb_ptr->set_lowpass = lowpass;
 		return 1;
 	} else {
-		ret = pcm512x_set_reg(1, PCM512x_MUTE, 0x00);
+		pcm512x_set_reg(1, PCM512x_MUTE, 0x00);
 	}
 
 	for (dac = 0; dac < NUM_CODECS; dac++) {
@@ -403,12 +406,36 @@ static int snd_allo_piano_dac_hw_params(
 		struct snd_pcm_substream *substream,
 		struct snd_pcm_hw_params *params)
 {
-	int ret = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
 	unsigned int rate = params_rate(params);
 	struct snd_soc_card *card = rtd->card;
 	struct glb_pool *glb_ptr = card->drvdata;
+	int dac = 0, ret = 0, val = 0;
+
+	for (dac = 0; dac < 2; dac++)
+	{
+
+		if (!glb_mclk) {
+			pcm512x_set_reg(dac, PCM512x_PLL_EN, 0x01);
+			pcm512x_set_reg(dac, PCM512x_PLL_REF, (1 << 4));
+			dev_info(rtd->codec->dev,
+				"Force Set BCLK as input clock & Enable PLL\n");
+		} else {
+			pcm512x_get_reg(dac, PCM512x_RATE_DET_4, &val);
+			if(val & 0x40) {
+				pcm512x_set_reg(dac, PCM512x_PLL_EN, 0x01);
+				pcm512x_set_reg(dac, PCM512x_PLL_REF, (1 << 4));
+				dev_info(rtd->codec->dev,
+					"Setting BCLK as input clock & Enable PLL\n");
+			} else {
+				pcm512x_set_reg(dac, PCM512x_PLL_EN, 0x00);
+				pcm512x_set_reg(dac, PCM512x_PLL_REF, 0x00);
+				dev_info(rtd->codec->dev,
+					"Setting SCLK as input clock & disabled PLL\n");
+			}
+		}
+	}
 
 	if (digital_gain_0db_limit) {
 		ret = snd_soc_limit_volume(codec,
