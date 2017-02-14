@@ -263,7 +263,7 @@ void aotg_uhost_mon_init(struct work_struct *w)
 		usb2_set_dp_500k_15k(aotg_uhost_mon0, 0, 1);
 		wake_lock_init(&aotg_uhost_mon0->aotg_wake_lock, WAKE_LOCK_SUSPEND, "aotg_wake_lock0");
 		printk("start mon 0 ......\n");
-		mod_timer(&aotg_uhost_mon0->hotplug_timer, jiffies + msecs_to_jiffies(10000));
+		mod_timer(&aotg_uhost_mon0->hotplug_timer, jiffies + msecs_to_jiffies(1000));    /*usb 2.0 boot wakep */
         	if (aotg_udc_enable[0]){
 			aotg_udc_register(0);
 		}
