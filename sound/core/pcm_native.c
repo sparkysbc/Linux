@@ -2642,7 +2642,7 @@ static int snd_pcm_playback_ioctl1(struct file *file,
 			return -EFAULT;
 		if (copy_from_user(&xferi, _xferi, sizeof(xferi)))
 			return -EFAULT;
-#ifdef CONFIG_SND_UBUNTU
+#ifndef CONFIG_SND_UBUNTU
         //when pcm data is 16bits
         if(runtime->format == SNDRV_PCM_FORMAT_S16_LE){
             unsigned int len, i;

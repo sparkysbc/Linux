@@ -1966,7 +1966,7 @@ static int snd_pcm_lib_write_transfer(struct snd_pcm_substream *substream,
 			return err;
 	} else {
 		char *hwbuf = runtime->dma_area + frames_to_bytes(runtime, hwoff);
-#ifdef CONFIG_SND_UBUNTU
+#ifndef CONFIG_SND_UBUNTU
         if(runtime->format == SNDRV_PCM_FORMAT_S16_LE){
             memcpy(hwbuf, buf, frames_to_bytes(runtime, frames));
         }else{

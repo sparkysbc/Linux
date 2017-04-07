@@ -111,10 +111,26 @@ static struct of_device_id owl_dt_match_table[] __initdata = {
 	{}
 };
 #endif /* CONFIG_OF */
+/*SPI device added for sparky    */
+static struct spi_board_info tp3_cmmb_spi_board_info[] __initdata = {
+	{
+		.modalias = "spidev",
+		.max_speed_hz = 10000000,
+		.bus_num = 0,
+		.chip_select = 0,
+		.mode = 0,
+	}
+};
+
 
 static void __init owl_board_init(void)
 {
 	int ret;
+	int err;
+	printk("\n sparky sbc spi0 registration Calling");
+        err = spi_register_board_info(tp3_cmmb_spi_board_info, ARRAY_SIZE(tp3_cmmb_spi_board_info));
+	if (err)
+		printk("sparky spi registeration got failed ");
 
 	ret = platform_add_devices(owl_platform_devices,
 		ARRAY_SIZE(owl_platform_devices));

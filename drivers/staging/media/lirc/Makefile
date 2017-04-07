@@ -9,5 +9,6 @@ obj-$(CONFIG_LIRC_IMON)		+= lirc_imon.o
 obj-$(CONFIG_LIRC_PARALLEL)	+= lirc_parallel.o
 obj-$(CONFIG_LIRC_SASEM)	+= lirc_sasem.o
 obj-$(CONFIG_LIRC_SERIAL)	+= lirc_serial.o
+obj-$(CONFIG_LIRC_SPARKY)       += lirc_sparky.o
 obj-$(CONFIG_LIRC_SIR)		+= lirc_sir.o
 obj-$(CONFIG_LIRC_ZILOG)	+= lirc_zilog.o

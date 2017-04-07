@@ -11,7 +11,6 @@ menuconfig LIRC_STAGING
 	  allow control of your Linux system via remote control.
 
 if LIRC_STAGING
-
 config LIRC_BT829
         tristate "BT829 based hardware"
 	depends on LIRC && PCI
@@ -49,6 +48,11 @@ config LIRC_SERIAL
 	depends on LIRC
 	help
 	  Driver for Homebrew Serial Port Receivers
+config LIRC_SPARKY
+	tristate "GPIO Port Receiver/Transmitter for the Sparky"
+	depends on LIRC
+	help
+	  Driver for GPIO Port Receiver/Transmitter for the sparky
 
 config LIRC_SERIAL_TRANSMITTER
 	bool "Serial Port Transmitter"

@@ -67,7 +67,8 @@
 
 		serial3_state_default: serial3_default{
 			serial_3{
-				actions,groups = "mfp2_21","mfp2_20","uart3_dummy";
+			//	actions,groups = "mfp2_21","mfp2_20","uart3_dummy";
+				actions,groups = "uart3_dummy";
 				actions,function = "uart3";
 			};
 		};
@@ -81,7 +82,7 @@
 
 		serial5_state_default: serial5_default{
 			serial_5{
-				actions,groups = "mfp2_19_17","mfp2_16_14";
+				actions,groups = "mfp2_21","mfp2_20";
 				actions,function = "uart5";
 			};
 		};
@@ -338,14 +339,13 @@
 				actions,pins = "P_SPI0_SCLK","P_SPI0_MOSI";
 				actions,pull = <2>; /*pull up*/
 			};
-		};		
-	 
+		};
 		spi0_state_default:spi0_over_i2c3 {/* i2c3 use spi0 pin      */
-                        spi0_over_i2c3_mfp {
-                                actions,groups = "mfp1_4_3","mfp1_2_0";
-                                actions,function = "spi0";
-                        };
-		 };		
+			spi0_over_i2c3_mfp {
+				actions,groups = "mfp1_4_3","mfp1_2_0";
+				actions,function = "spi0";
+			};
+		};
 
 		pwm0_state_default: pwm0_default {
 			pwm0_mfp {
@@ -445,8 +445,8 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&serial5_state_default>;
 //		actions,enable-dma-rx;
-		status = "disabled";
-		sdio_uart_supported;
+		status = "okay";
+//		sdio_uart_supported;
 	};
 
 	serial@b012c000 {
@@ -793,6 +793,11 @@
     	interrupts =< 0 0x4 >; /*SIRQ0*/
 			vol_range = <3100000 3110000>;
 		};
+		at24@50{
+			compatible = "at24,24c32";
+			reg = <0x50>;
+			pagesize = <32>;
+		};
 	};
 
 	i2c@b0178000 {
@@ -823,7 +828,7 @@
 			calibration_table = <0 0 0>;			
 		};
 
-	        pcm5122@4c{
+		pcm5122@4c{
                         compatible = "ti,pcm5122";
                         reg = <0x4c>;
                         status = "okay";
@@ -846,7 +851,6 @@
 			MASTER_inv6515_position = "-1";
 			SECONDARY_ak8963c_position = "-2";
 		};
-		
 		mir3da@27{
 			compatible = "mir3da";
 			reg = <0x27>;
@@ -858,7 +862,7 @@
 	i2c@b017c000 {
 		i2c_num = <3>;
 		clock-frequency = <400000>;
-		status = "disable";
+		status = "disabled";
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2c3_state_over_spi0>;
 		eg2801_eeprom@14 {
