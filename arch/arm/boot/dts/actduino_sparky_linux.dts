@@ -524,12 +524,12 @@
 			};
 			atc260x-irkeypad{
 				size = <28>;
-				user_code = <16448>;
+				user_code = <60976>;  /*4040:16448 ,7F80 :32640 ee30 = 60976 allo 12 key remote */
 				protocol = <1>;
 				wk_code= <77>;
 				period = <140>;
-				ir_code = <77 67 21 28 11 14 16 17 13 26 69 66 12 1 2 3 4 5 6 7 8 9 0 68 83 18 30 31>;
-				key_code = <116 113 115 114 103 108 105 106 353 172 139 158 14 2 3 4 5 6 7 8 9 10 11 175 139 52 165 163>;
+				ir_code = <1 2 3 4 5 6 7 8 9 0 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28>;
+				key_code = <172 113 182 103 108 165 163 115 114 164 166 28 1 2 3 4 5 6 7 8 9 0 158 14 15 105 106 111>;
 				compatible = "actions,atc2603c-irkeypad";
 			};
 
@@ -829,12 +829,12 @@
 			calibration_table = <0 0 0>;			
 		};
 
-		 pcm5122@4c{ 
-                          compatible = "ti,pcm5122";       
-                          reg = <0x4c>;                    
-                          status = "okay";                 
-                          pinctrl-names = "default";        
-                          pinctrl-0 = <&i2s0_state_default>; 
+		pcm5122@4c{
+			compatible = "ti,pcm5122";
+			reg = <0x4c>;
+			status = "okay";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2s0_state_default>;
                 };
 
 		pcm5122@4d{
@@ -1005,7 +1005,7 @@
 		port0_host_plug_detect = <3>;
 		}; 
 	usb@b0700000 {
-		port1_host_plug_detect = <3>;    /* Sparky USB bridg support */ 
+		port1_host_plug_detect = <3>;    /* Sparky USB bridg support */
 		vbus_otg_en_gpio =<&gpio 116 1>; /*GPIO D20*/ 
 		};
 
