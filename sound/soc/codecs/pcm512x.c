@@ -332,31 +332,31 @@ static int pcm512x_set_bias_level(struct snd_soc_codec *codec,
 			break;
 
 		switch (level) {
-			case SND_SOC_BIAS_ON:
-			case SND_SOC_BIAS_PREPARE:
-				break;
+		case SND_SOC_BIAS_ON:
+		case SND_SOC_BIAS_PREPARE:
+			break;
 
-			case SND_SOC_BIAS_STANDBY:
-				ret = regmap_update_bits(regmap, PCM512x_POWER,
-						PCM512x_RQST, 0);
-				if (ret != 0) {
-					dev_err(codec->dev,
-						"Failed to remove standby: %d\n",
-						ret);
-					return ret;
-				}
-				break;
+		case SND_SOC_BIAS_STANDBY:
+			ret = regmap_update_bits(regmap, PCM512x_POWER,
+					PCM512x_RQST, 0);
+			if (ret != 0) {
+				dev_err(codec->dev,
+					"Failed to remove standby: %d\n",
+					ret);
+				return ret;
+			}
+			break;
 
-			case SND_SOC_BIAS_OFF:
-				ret = regmap_update_bits(regmap, PCM512x_POWER,
-						PCM512x_RQST, PCM512x_RQST);
-				if (ret != 0) {
-					dev_err(codec->dev,
-						"Failed to request standby: %d\n",
-						ret);
-					return ret;
-				}
-				break;
+		case SND_SOC_BIAS_OFF:
+			ret = regmap_update_bits(regmap, PCM512x_POWER,
+					PCM512x_RQST, PCM512x_RQST);
+			if (ret != 0) {
+				dev_err(codec->dev,
+					"Failed to request standby: %d\n",
+					ret);
+				return ret;
+			}
+			break;
 		}
 	}
 
@@ -429,6 +429,12 @@ int pcm512x_probe(struct device *dev, struct regmap *regmap)
 		/* Reset the device, verifying I/O in the process for I2C */
 	ret = regmap_write(regmap, PCM512x_RESET,
 			   PCM512x_RSTM | PCM512x_RSTR);
+
+	if (i2c->addr == 0x4d) {
+		dev_err(dev, "Failed to reset device: %d\n", ret);
+		return -6;
+	}
+
 	if (ret != 0) {
 		dev_err(dev, "Failed to reset device: %d\n", ret);
 		return ret;
@@ -484,7 +490,6 @@ int pcm512x_probe(struct device *dev, struct regmap *regmap)
 		dev_err(dev, "Failed to register CODEC: %d\n", ret);
 		goto err_pm;
 	}
-
 	return 0;
 
 err_pm:

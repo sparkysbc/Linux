@@ -77,6 +77,8 @@ static const char *const allo_piano_mode_texts[] = {
 	"2.0",
 	"2.1",
 	"2.2",
+	"Dual Stereo",
+	"Dual Mono",
 };
 
 static const SOC_ENUM_SINGLE_DECL(allo_piano_mode_enum,
@@ -103,6 +105,49 @@ static const char * const allo_piano_dsp_low_pass_texts[] = {
 static const SOC_ENUM_SINGLE_DECL(allo_piano_enum,
 		0, 0, allo_piano_dsp_low_pass_texts);
 
+static void snd_allo_piano_gpio_mute(struct snd_soc_card *card)
+{
+	gpio_direction_output(PCM5142_DAC_ONE_MUTE, 0);
+	gpio_direction_output(PCM5142_DAC_TWO_MUTE, 0);
+}
+
+static void snd_allo_piano_gpio_unmute(struct snd_soc_card *card)
+{
+	gpio_direction_output(PCM5142_DAC_ONE_MUTE, 1);
+	gpio_direction_output(PCM5142_DAC_TWO_MUTE, 1);
+}
+
+static int snd_allo_piano_set_bias_level(struct snd_soc_card *card,
+					struct snd_soc_dapm_context *dapm,
+					enum snd_soc_bias_level level)
+{
+	struct snd_soc_dai *codec_dai = card->rtd[0].codec_dai;
+
+	if (dapm->dev != codec_dai->dev)
+		return 0;
+
+	switch (level) {
+	case SND_SOC_BIAS_PREPARE:
+		if (dapm->bias_level != SND_SOC_BIAS_STANDBY)
+			break;
+		/* UNMUTE DAC */
+		snd_allo_piano_gpio_unmute(card);
+		break;
+
+	case SND_SOC_BIAS_STANDBY:
+		if (dapm->bias_level != SND_SOC_BIAS_PREPARE)
+			break;
+		/* MUTE DAC */
+		snd_allo_piano_gpio_mute(card);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 		unsigned int mode, unsigned int rate, unsigned int lowpass)
 {
@@ -127,7 +172,7 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 
 	if ((lowpass > 14) || (lowpass < 0))
 		lowpass = 3;
-	if ((mode > 2) || (mode < 0))
+	if ((mode > 4) || (mode < 0))
 		mode = 0;
 
 	/* same configuration loaded */
@@ -136,12 +181,28 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 		return 0;
 
 	if (mode == 0) { /* 2.0 */
+		pcm512x_set_reg(0, PCM512x_MUTE, 0x00);
 		pcm512x_set_reg(1, PCM512x_MUTE, 0x11);
 		glb_ptr->set_rate = rate;
 		glb_ptr->set_mode = mode;
 		glb_ptr->set_lowpass = lowpass;
 		return 1;
+	} else if (mode == 3) { /* dual Stereo */
+		pcm512x_set_reg(0, PCM512x_MUTE, 0x00);
+		pcm512x_set_reg(1, PCM512x_MUTE, 0x00);
+		glb_ptr->set_rate = rate;
+		glb_ptr->set_mode = mode;
+		glb_ptr->set_lowpass = lowpass;
+		return 1;
+	} else if (mode == 4) { /* dual Mono */
+		pcm512x_set_reg(0, PCM512x_MUTE, 0x01);
+		pcm512x_set_reg(1, PCM512x_MUTE, 0x10);
+		glb_ptr->set_rate = rate;
+		glb_ptr->set_mode = mode;
+		glb_ptr->set_lowpass = lowpass;
+		return 1;
 	} else {
+		pcm512x_set_reg(0, PCM512x_MUTE, 0x00);
 		pcm512x_set_reg(1, PCM512x_MUTE, 0x00);
 	}
 
@@ -152,12 +213,12 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 
 		if (dac == 0) { /* high */
 			sprintf(firmware_name,
-				"allo/piano/2.2/allo-piano-dsp-%d-%d-%d.bin",
-				rate, ((lowpass * 10) + 60), dac);
+					"allo/piano/2.2/allo-piano-dsp-%d-%d-%d.bin",
+					rate, ((lowpass * 10) + 60), dac);
 		} else { /* low */
 			sprintf(firmware_name,
-				"allo/piano/2.%d/allo-piano-dsp-%d-%d-%d.bin",
-				mode, rate, ((lowpass * 10) + 60), dac);
+					"allo/piano/2.%d/allo-piano-dsp-%d-%d-%d.bin",
+					mode, rate, ((lowpass * 10) + 60), dac);
 		}
 
 		dev_info(codec->dev, "Dsp Firmware File Name: %s\n",
@@ -166,8 +227,8 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 		ret = request_firmware(&fw, firmware_name, codec->dev);
 		if (ret < 0) {
 			dev_err(codec->dev,
-				"Error: Allo Piano Firmware %s missing. %d\n",
-				firmware_name, ret);
+					"Error: Allo Piano Firmware %s missing. %d\n",
+					firmware_name, ret);
 			goto err;
 		}
 
@@ -181,8 +242,7 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 						dsp_code_read->val);
 
 			} else if (dsp_code_read->offset != 0) {
-				ret = pcm512x_set_reg(dac,
-						(PCM512x_PAGE_BASE(
+				ret = pcm512x_set_reg(dac, (PCM512x_PAGE_BASE(
 						glb_ptr->dsp_page_number) +
 						dsp_code_read->offset),
 						dsp_code_read->val);
@@ -402,6 +462,16 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
+static int snd_allo_piano_dac_startup(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+
+	snd_allo_piano_gpio_mute(card);
+
+	return 0;
+}
+
 static int snd_allo_piano_dac_hw_params(
 		struct snd_pcm_substream *substream,
 		struct snd_pcm_hw_params *params)
@@ -413,8 +483,7 @@ static int snd_allo_piano_dac_hw_params(
 	struct glb_pool *glb_ptr = card->drvdata;
 	int dac = 0, ret = 0, val = 0;
 
-	for (dac = 0; dac < 2; dac++)
-	{
+	for (dac = 0; dac < 2; dac++) {
 
 		if (!glb_mclk) {
 			pcm512x_set_reg(dac, PCM512x_PLL_EN, 0x01);
@@ -423,7 +492,7 @@ static int snd_allo_piano_dac_hw_params(
 				"Force Set BCLK as input clock & Enable PLL\n");
 		} else {
 			pcm512x_get_reg(dac, PCM512x_RATE_DET_4, &val);
-			if(val & 0x40) {
+			if (val & 0x40) {
 				pcm512x_set_reg(dac, PCM512x_PLL_EN, 0x01);
 				pcm512x_set_reg(dac, PCM512x_PLL_REF, (1 << 4));
 				dev_info(rtd->codec->dev,
@@ -451,8 +520,19 @@ static int snd_allo_piano_dac_hw_params(
 	return ret;
 }
 
+static int snd_allo_piano_dac_prepare(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+
+	snd_allo_piano_gpio_unmute(card);
+	return 0;
+}
+
 static struct snd_soc_ops allo_pianodac_ops = {
+	.startup = snd_allo_piano_dac_startup,
 	.hw_params = snd_allo_piano_dac_hw_params,
+	.prepare = snd_allo_piano_dac_prepare,
 };
 
 static struct snd_soc_dai_link allo_piano_dac_link_dai[] = {
@@ -535,6 +615,11 @@ static int __init atm7059_link_init(void)
 				PCM512X_AMP_MUTE);
 	}
 	gpio_direction_output(PCM512X_AMP_MUTE, 0);
+
+	snd_soc_allo_pianodac.set_bias_level = snd_allo_piano_set_bias_level;
+
+	snd_allo_piano_gpio_mute(&snd_soc_allo_pianodac);
+
 	return 0;
 
 platform_device_add_failed:
@@ -548,8 +633,8 @@ static void __exit atm7059_link_exit(void)
 	struct snd_soc_card *card;
 
 	card = platform_get_drvdata(atm7059_link_snd_device_pcm512x);
-
-	kfree(&card->drvdata);
+	if (card->drvdata)
+		kfree(&card->drvdata);
 	platform_device_unregister(atm7059_link_snd_device_pcm512x);
 }
 

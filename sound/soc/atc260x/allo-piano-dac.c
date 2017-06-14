@@ -51,8 +51,59 @@ static bool glb_mclk = 1;
 module_param(glb_mclk, bool, 0);
 MODULE_PARM_DESC(glb_mclk, "Used to disable the MCLK clock");
 
+static void snd_allo_piano_gpio_mute(struct snd_soc_card *card)
+{
+	gpio_direction_output(PCM512X_DAC_MUTE, 0);
+}
+
+static void snd_allo_piano_gpio_unmute(struct snd_soc_card *card)
+{
+	gpio_direction_output(PCM512X_DAC_MUTE, 1);
+}
+
+static int snd_allo_piano_set_bias_level(struct snd_soc_card *card,
+					struct snd_soc_dapm_context *dapm,
+					enum snd_soc_bias_level level)
+{
+	struct snd_soc_dai *codec_dai = card->rtd[0].codec_dai;
+
+	if (dapm->dev != codec_dai->dev)
+		return 0;
+
+	switch (level) {
+	case SND_SOC_BIAS_PREPARE:
+		if (dapm->bias_level != SND_SOC_BIAS_STANDBY)
+			break;
+		/* UNMUTE DAC */
+		snd_allo_piano_gpio_unmute(card);
+		break;
+
+	case SND_SOC_BIAS_STANDBY:
+		if (dapm->bias_level != SND_SOC_BIAS_PREPARE)
+			break;
+		/* MUTE DAC */
+		snd_allo_piano_gpio_mute(card);
+		break;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int snd_allo_piano_dac_startup(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+
+	snd_allo_piano_gpio_mute(card);
+
+	return 0;
+}
+
 static int snd_allo_piano_dac_hw_params(struct snd_pcm_substream *substream,
-	struct snd_pcm_hw_params *params)
+					struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	int dac = 0, val = 0;
@@ -65,7 +116,7 @@ static int snd_allo_piano_dac_hw_params(struct snd_pcm_substream *substream,
 				"Force Set BCLK as input clock & Enable PLL\n");
 	} else {
 		val = snd_soc_read(rtd->codec, PCM512x_RATE_DET_4);
-		if(val & 0x40) {
+		if (val & 0x40) {
 			snd_soc_write(rtd->codec, PCM512x_PLL_EN, 0x01);
 			snd_soc_write(rtd->codec, PCM512x_PLL_REF, (1 << 4));
 			dev_info(rtd->codec->dev,
@@ -81,8 +132,19 @@ static int snd_allo_piano_dac_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int snd_allo_piano_dac_prepare(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+
+	snd_allo_piano_gpio_unmute(card);
+	return 0;
+}
+
 static struct snd_soc_ops allo_pianodac_ops = {
+	.startup = snd_allo_piano_dac_startup,
 	.hw_params = snd_allo_piano_dac_hw_params,
+	.prepare = snd_allo_piano_dac_prepare,
 };
 
 /*
@@ -175,6 +237,10 @@ static int __init snd_allo_piano_link_init(void)
 				PCM512X_AMP_MUTE);
 	}
 	gpio_direction_output(PCM512X_AMP_MUTE, 0);
+
+	snd_soc_allo_pianodac.set_bias_level = snd_allo_piano_set_bias_level;
+
+	snd_allo_piano_gpio_mute(&snd_soc_allo_pianodac);
 
 	return 0;
 
