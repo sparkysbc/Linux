@@ -77,8 +77,8 @@ static const char *const allo_piano_mode_texts[] = {
 	"2.0",
 	"2.1",
 	"2.2",
-	"Dual Stereo",
-	"Dual Mono",
+	"Dual-Stereo",
+	"Dual-Mono",
 };
 
 static const SOC_ENUM_SINGLE_DECL(allo_piano_mode_enum,

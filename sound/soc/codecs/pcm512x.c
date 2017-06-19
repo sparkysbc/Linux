@@ -430,11 +430,6 @@ int pcm512x_probe(struct device *dev, struct regmap *regmap)
 	ret = regmap_write(regmap, PCM512x_RESET,
 			   PCM512x_RSTM | PCM512x_RSTR);
 
-	if (i2c->addr == 0x4d) {
-		dev_err(dev, "Failed to reset device: %d\n", ret);
-		return -6;
-	}
-
 	if (ret != 0) {
 		dev_err(dev, "Failed to reset device: %d\n", ret);
 		return ret;
