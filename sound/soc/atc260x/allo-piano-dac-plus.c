@@ -67,6 +67,7 @@ struct dsp_code {
 
 struct glb_pool {
 	struct mutex lock;
+	unsigned int dual_mode;
 	unsigned int set_lowpass;
 	unsigned int set_mode;
 	unsigned int set_rate;
@@ -74,15 +75,23 @@ struct glb_pool {
 };
 
 static const char *const allo_piano_mode_texts[] = {
+	"None",
 	"2.0",
 	"2.1",
 	"2.2",
-	"Dual-Stereo",
-	"Dual-Mono",
 };
 
 static const SOC_ENUM_SINGLE_DECL(allo_piano_mode_enum,
-					0, 0, allo_piano_mode_texts);
+		0, 0, allo_piano_mode_texts);
+
+static const char * const allo_piano_dual_mode_texts[] = {
+	"None",
+	"Dual-Mono",
+	"Dual-Stereo",
+};
+
+static const SOC_ENUM_SINGLE_DECL(allo_piano_dual_mode_enum,
+		0, 0, allo_piano_dual_mode_texts);
 
 static const char * const allo_piano_dsp_low_pass_texts[] = {
 	"60",
@@ -170,42 +179,42 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 	else
 		rate = 192000;
 
-	if ((lowpass > 14) || (lowpass < 0))
-		lowpass = 3;
-	if ((mode > 4) || (mode < 0))
-		mode = 0;
+	if (lowpass > 14)
+		glb_ptr->set_lowpass = lowpass = 3;
+
+	if (mode > 3)
+		glb_ptr->set_mode = mode = 0;
+
+	if (mode > 0)
+		glb_ptr->dual_mode = 0;
 
 	/* same configuration loaded */
 	if ((rate == glb_ptr->set_rate) && (lowpass == glb_ptr->set_lowpass)
-			&& (mode == glb_ptr->set_mode))
-		return 0;
+			&& (mode == glb_ptr->set_mode)) {
+		if (mode == 0) {
+			pcm512x_set_reg(0, PCM512x_MUTE, 0x00);
+			pcm512x_set_reg(1, PCM512x_MUTE, 0x11);
+		}
 
-	if (mode == 0) { /* 2.0 */
+		return 0;
+	}
+
+	switch (mode) {
+	case 0: /* None */
+		return 1;
+
+	case 1: /* 2.0 */
 		pcm512x_set_reg(0, PCM512x_MUTE, 0x00);
 		pcm512x_set_reg(1, PCM512x_MUTE, 0x11);
 		glb_ptr->set_rate = rate;
 		glb_ptr->set_mode = mode;
 		glb_ptr->set_lowpass = lowpass;
 		return 1;
-	} else if (mode == 3) { /* dual Stereo */
-		pcm512x_set_reg(0, PCM512x_MUTE, 0x00);
-		pcm512x_set_reg(1, PCM512x_MUTE, 0x00);
-		glb_ptr->set_rate = rate;
-		glb_ptr->set_mode = mode;
-		glb_ptr->set_lowpass = lowpass;
-		return 1;
-	} else if (mode == 4) { /* dual Mono */
-		pcm512x_set_reg(0, PCM512x_MUTE, 0x01);
-		pcm512x_set_reg(1, PCM512x_MUTE, 0x10);
-		glb_ptr->set_rate = rate;
-		glb_ptr->set_mode = mode;
-		glb_ptr->set_lowpass = lowpass;
-		return 1;
-	} else {
+
+	default:
 		pcm512x_set_reg(0, PCM512x_MUTE, 0x00);
 		pcm512x_set_reg(1, PCM512x_MUTE, 0x00);
 	}
-
 	for (dac = 0; dac < NUM_CODECS; dac++) {
 		struct dsp_code *dsp_code_read;
 		int i = 1;
@@ -213,12 +222,12 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 
 		if (dac == 0) { /* high */
 			sprintf(firmware_name,
-					"allo/piano/2.2/allo-piano-dsp-%d-%d-%d.bin",
-					rate, ((lowpass * 10) + 60), dac);
+				"allo/piano/2.2/allo-piano-dsp-%d-%d-%d.bin",
+				rate, ((lowpass * 10) + 60), dac);
 		} else { /* low */
 			sprintf(firmware_name,
-					"allo/piano/2.%d/allo-piano-dsp-%d-%d-%d.bin",
-					mode, rate, ((lowpass * 10) + 60), dac);
+				"allo/piano/2.%d/allo-piano-dsp-%d-%d-%d.bin",
+				(mode - 1), rate, ((lowpass * 10) + 60), dac);
 		}
 
 		dev_info(codec->dev, "Dsp Firmware File Name: %s\n",
@@ -227,8 +236,8 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 		ret = request_firmware(&fw, firmware_name, codec->dev);
 		if (ret < 0) {
 			dev_err(codec->dev,
-					"Error: Allo Piano Firmware %s missing. %d\n",
-					firmware_name, ret);
+				"Error: Allo Piano Firmware %s missing. %d\n",
+				firmware_name, ret);
 			goto err;
 		}
 
@@ -282,6 +291,77 @@ static int snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 	return ret;
 }
 
+static int snd_allo_piano_dual_mode_get(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_card *card = snd_kcontrol_chip(kcontrol);
+	struct glb_pool *glb_ptr = card->drvdata;
+
+	ucontrol->value.integer.value[0] = glb_ptr->dual_mode;
+
+	return 0;
+}
+
+static int snd_allo_piano_dual_mode_put(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_card *card = snd_kcontrol_chip(kcontrol);
+	struct glb_pool *glb_ptr = card->drvdata;
+	struct snd_soc_pcm_runtime *rtd;
+	struct snd_card *snd_card_ptr = card->snd_card;
+	struct snd_kcontrol *kctl;
+	struct soc_mixer_control *mc;
+	unsigned int left_val = 0;
+
+	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
+
+	if (ucontrol->value.integer.value[0] > 0) {
+		glb_ptr->dual_mode = ucontrol->value.integer.value[0];
+		glb_ptr->set_mode = 0;
+	} else if (ucontrol->value.integer.value[0] <= 0) {
+		if (glb_ptr->set_mode <= 0) {
+			glb_ptr->dual_mode = 1;
+			glb_ptr->set_mode = 0;
+		}
+	} else {
+		glb_ptr->dual_mode = 0;
+		return 0;
+	}
+
+	if (glb_ptr->dual_mode == 1) {
+		pcm512x_set_reg(0, PCM512x_MUTE, 0x01);
+		pcm512x_set_reg(1, PCM512x_MUTE, 0x10);
+		pcm512x_set_reg(0, PCM512x_DIGITAL_VOLUME_3, 0xff);
+
+		list_for_each_entry(kctl, &snd_card_ptr->controls, list) {
+			if (!strncmp(kctl->id.name, "Digital Playback Volume",
+					sizeof(kctl->id.name))) {
+				mc = (struct soc_mixer_control *)
+					kctl->private_value;
+				mc->rreg = mc->reg;
+				break;
+			}
+		}
+	} else {
+		pcm512x_get_reg(0, PCM512x_DIGITAL_VOLUME_2, &left_val);
+		list_for_each_entry(kctl, &snd_card_ptr->controls, list) {
+			if (!strncmp(kctl->id.name, "Digital Playback Volume",
+					sizeof(kctl->id.name))) {
+				mc = (struct soc_mixer_control *)
+					kctl->private_value;
+				mc->rreg = PCM512x_DIGITAL_VOLUME_3;
+				break;
+			}
+		}
+
+		pcm512x_set_reg(0, PCM512x_DIGITAL_VOLUME_3, left_val);
+		pcm512x_set_reg(0, PCM512x_MUTE, 0x00);
+		pcm512x_set_reg(1, PCM512x_MUTE, 0x00);
+	}
+
+	return 0;
+}
+
 static int snd_allo_piano_mode_get(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
@@ -298,8 +378,31 @@ static int snd_allo_piano_mode_put(struct snd_kcontrol *kcontrol,
 	struct snd_soc_card *card = snd_kcontrol_chip(kcontrol);
 	struct snd_soc_pcm_runtime *rtd;
 	struct glb_pool *glb_ptr = card->drvdata;
+	struct snd_card *snd_card_ptr = card->snd_card;
+	struct snd_kcontrol *kctl;
+	struct soc_mixer_control *mc;
+	unsigned int left_val = 0;
 
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
+
+	if ((glb_ptr->dual_mode == 1) &&
+		(ucontrol->value.integer.value[0] > 0)) {
+
+		pcm512x_get_reg(0, PCM512x_DIGITAL_VOLUME_2, &left_val);
+
+		list_for_each_entry(kctl, &snd_card_ptr->controls, list) {
+			if (!strncmp(kctl->id.name, "Digital Playback Volume",
+					sizeof(kctl->id.name))) {
+				mc = (struct soc_mixer_control *)
+					kctl->private_value;
+				mc->rreg = PCM512x_DIGITAL_VOLUME_3;
+				break;
+			}
+		}
+
+		pcm512x_set_reg(0, PCM512x_DIGITAL_VOLUME_3, left_val);
+	}
+
 	return snd_allo_piano_dsp_program(rtd,
 				ucontrol->value.integer.value[0],
 				glb_ptr->set_rate, glb_ptr->set_lowpass);
@@ -415,6 +518,11 @@ static const struct snd_kcontrol_new allo_piano_controls[] = {
 			allo_piano_mode_enum,
 			snd_allo_piano_mode_get,
 			snd_allo_piano_mode_put),
+
+	SOC_ENUM_EXT("Dual Mode Route",
+			allo_piano_dual_mode_enum,
+			snd_allo_piano_dual_mode_get,
+			snd_allo_piano_dual_mode_put),
 
 	SOC_ENUM_EXT("Lowpass Route", allo_piano_enum,
 			snd_allo_piano_lowpass_get,
