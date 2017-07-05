@@ -161,10 +161,10 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 		unsigned int mode, unsigned int rate, unsigned int lowpass)
 {
 	const struct firmware *fw;
-	char firmware_name[60];
-	int ret = 0, dac = 0;
 	struct snd_soc_card *card = rtd->card;
 	struct glb_pool *glb_ptr = card->drvdata;
+	char firmware_name[60];
+	int ret = 0, dac = 0;
 
 	if (rate <= 46000)
 		rate = 44100;
@@ -190,14 +190,8 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 
 	/* same configuration loaded */
 	if ((rate == glb_ptr->set_rate) && (lowpass == glb_ptr->set_lowpass)
-			&& (mode == glb_ptr->set_mode)) {
-		if (mode == 0) {
-			pcm512x_set_reg(0, PCM512x_MUTE, 0x00);
-			pcm512x_set_reg(1, PCM512x_MUTE, 0x11);
-		}
-
+			&& (mode == glb_ptr->set_mode))
 		return 0;
-	}
 
 	switch (mode) {
 	case 0: /* None */
@@ -215,17 +209,18 @@ static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 		pcm512x_set_reg(0, PCM512x_MUTE, 0x00);
 		pcm512x_set_reg(1, PCM512x_MUTE, 0x00);
 	}
+
 	for (dac = 0; dac < NUM_CODECS; dac++) {
 		struct dsp_code *dsp_code_read;
-		int i = 1;
 		struct snd_soc_codec *codec = rtd->codec;
+		int i = 1;
 
 		if (dac == 0) { /* high */
-			sprintf(firmware_name,
+			snprintf(firmware_name, sizeof(firmware_name),
 				"allo/piano/2.2/allo-piano-dsp-%d-%d-%d.bin",
 				rate, ((lowpass * 10) + 60), dac);
 		} else { /* low */
-			sprintf(firmware_name,
+			snprintf(firmware_name, sizeof(firmware_name),
 				"allo/piano/2.%d/allo-piano-dsp-%d-%d-%d.bin",
 				(mode - 1), rate, ((lowpass * 10) + 60), dac);
 		}
@@ -322,6 +317,8 @@ static int snd_allo_piano_dual_mode_put(struct snd_kcontrol *kcontrol,
 		if (glb_ptr->set_mode <= 0) {
 			glb_ptr->dual_mode = 1;
 			glb_ptr->set_mode = 0;
+		} else if (glb_ptr->set_mode > 0) {
+			return 0;
 		}
 	} else {
 		glb_ptr->dual_mode = 0;
@@ -403,9 +400,9 @@ static int snd_allo_piano_mode_put(struct snd_kcontrol *kcontrol,
 		pcm512x_set_reg(0, PCM512x_DIGITAL_VOLUME_3, left_val);
 	}
 
-	return snd_allo_piano_dsp_program(rtd,
+	return (snd_allo_piano_dsp_program(rtd,
 				ucontrol->value.integer.value[0],
-				glb_ptr->set_rate, glb_ptr->set_lowpass);
+				glb_ptr->set_rate, glb_ptr->set_lowpass));
 }
 
 static int snd_allo_piano_lowpass_get(struct snd_kcontrol *kcontrol,
@@ -426,9 +423,9 @@ static int snd_allo_piano_lowpass_put(struct snd_kcontrol *kcontrol,
 	struct glb_pool *glb_ptr = card->drvdata;
 
 	rtd = snd_soc_get_pcm_runtime(card, card->dai_link[0].name);
-	return snd_allo_piano_dsp_program(rtd,
+	return (snd_allo_piano_dsp_program(rtd,
 				glb_ptr->set_mode, glb_ptr->set_rate,
-				ucontrol->value.integer.value[0]);
+				ucontrol->value.integer.value[0]));
 }
 
 static int pcm512x_get_reg_sub(struct snd_kcontrol *kcontrol,
@@ -634,6 +631,7 @@ static int snd_allo_piano_dac_prepare(struct snd_pcm_substream *substream)
 	struct snd_soc_card *card = rtd->card;
 
 	snd_allo_piano_gpio_unmute(card);
+
 	return 0;
 }
 
