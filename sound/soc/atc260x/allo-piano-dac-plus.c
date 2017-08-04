@@ -114,49 +114,6 @@ static const char * const allo_piano_dsp_low_pass_texts[] = {
 static const SOC_ENUM_SINGLE_DECL(allo_piano_enum,
 		0, 0, allo_piano_dsp_low_pass_texts);
 
-static void snd_allo_piano_gpio_mute(struct snd_soc_card *card)
-{
-	gpio_direction_output(PCM5142_DAC_ONE_MUTE, 0);
-	gpio_direction_output(PCM5142_DAC_TWO_MUTE, 0);
-}
-
-static void snd_allo_piano_gpio_unmute(struct snd_soc_card *card)
-{
-	gpio_direction_output(PCM5142_DAC_ONE_MUTE, 1);
-	gpio_direction_output(PCM5142_DAC_TWO_MUTE, 1);
-}
-
-static int snd_allo_piano_set_bias_level(struct snd_soc_card *card,
-					struct snd_soc_dapm_context *dapm,
-					enum snd_soc_bias_level level)
-{
-	struct snd_soc_dai *codec_dai = card->rtd[0].codec_dai;
-
-	if (dapm->dev != codec_dai->dev)
-		return 0;
-
-	switch (level) {
-	case SND_SOC_BIAS_PREPARE:
-		if (dapm->bias_level != SND_SOC_BIAS_STANDBY)
-			break;
-		/* UNMUTE DAC */
-		snd_allo_piano_gpio_unmute(card);
-		break;
-
-	case SND_SOC_BIAS_STANDBY:
-		if (dapm->bias_level != SND_SOC_BIAS_PREPARE)
-			break;
-		/* MUTE DAC */
-		snd_allo_piano_gpio_mute(card);
-		break;
-
-	default:
-		break;
-	}
-
-	return 0;
-}
-
 static int __snd_allo_piano_dsp_program(struct snd_soc_pcm_runtime *rtd,
 		unsigned int mode, unsigned int rate, unsigned int lowpass)
 {
@@ -313,19 +270,16 @@ static int snd_allo_piano_dual_mode_put(struct snd_kcontrol *kcontrol,
 	if (ucontrol->value.integer.value[0] > 0) {
 		glb_ptr->dual_mode = ucontrol->value.integer.value[0];
 		glb_ptr->set_mode = 0;
-	} else if (ucontrol->value.integer.value[0] <= 0) {
+	} else {
 		if (glb_ptr->set_mode <= 0) {
 			glb_ptr->dual_mode = 1;
 			glb_ptr->set_mode = 0;
-		} else if (glb_ptr->set_mode > 0) {
-			return 0;
+		} else {
+			glb_ptr->dual_mode = 0;
 		}
-	} else {
-		glb_ptr->dual_mode = 0;
-		return 0;
 	}
 
-	if (glb_ptr->dual_mode == 1) {
+	if (glb_ptr->dual_mode == 1) { // Dual Mono
 		pcm512x_set_reg(0, PCM512x_MUTE, 0x01);
 		pcm512x_set_reg(1, PCM512x_MUTE, 0x10);
 		pcm512x_set_reg(0, PCM512x_DIGITAL_VOLUME_3, 0xff);
@@ -387,7 +341,6 @@ static int snd_allo_piano_mode_put(struct snd_kcontrol *kcontrol,
 
 	if ((glb_ptr->dual_mode == 1) &&
 		(ucontrol->value.integer.value[0] > 0)) {
-
 		pcm512x_get_reg(0, PCM512x_DIGITAL_VOLUME_2, &left_val);
 		pcm512x_get_reg(1, PCM512x_DIGITAL_VOLUME_2, &right_val);
 
@@ -471,10 +424,8 @@ static int pcm512x_set_reg_sub(struct snd_kcontrol *kcontrol,
 		(struct soc_mixer_control *)kcontrol->private_value;
 	struct snd_soc_card *card = snd_kcontrol_chip(kcontrol);
 	struct glb_pool *glb_ptr = card->drvdata;
-	unsigned int left_val =
-			(ucontrol->value.integer.value[0] & mc->max);
-	unsigned int right_val =
-			(ucontrol->value.integer.value[1] & mc->max);
+	unsigned int left_val = (ucontrol->value.integer.value[0] & mc->max);
+	unsigned int right_val = (ucontrol->value.integer.value[1] & mc->max);
 	int ret = 0;
 
 	if (glb_ptr->dual_mode != 1) {
@@ -555,7 +506,7 @@ static int pcm512x_get_reg_master(struct snd_kcontrol *kcontrol,
 		(~(left_val  >> mc->shift)) & mc->max;
 	ucontrol->value.integer.value[1] =
 		(~(right_val >> mc->shift)) & mc->max;
-	printk("\n get Vol:%x %x ",ucontrol->value.integer.value[0],ucontrol->value.integer.value[1]);
+
 	return 0;
 }
 
@@ -591,7 +542,7 @@ static int pcm512x_set_reg_master(struct snd_kcontrol *kcontrol,
 				(~left_val));
 	if (ret < 0)
 		return ret;
-	printk("\n set Vol:%x %x ",ucontrol->value.integer.value[0],ucontrol->value.integer.value[1]);
+
 	return 1;
 }
 
@@ -703,7 +654,6 @@ static const struct snd_kcontrol_new allo_piano_controls[] = {
 			PCM512x_RQMR_SHIFT, 1, 1,
 			pcm512x_get_reg_master_switch,
 			pcm512x_set_reg_master_switch),
-
 };
 
 static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
@@ -728,6 +678,49 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 		if (ret < 0)
 			dev_warn(codec->dev,
 				"Failed to set volume limit: %d\n", ret);
+	}
+
+	return 0;
+}
+
+static void snd_allo_piano_gpio_mute(struct snd_soc_card *card)
+{
+	gpio_direction_output(PCM5142_DAC_ONE_MUTE, 0);
+	gpio_direction_output(PCM5142_DAC_TWO_MUTE, 0);
+}
+
+static void snd_allo_piano_gpio_unmute(struct snd_soc_card *card)
+{
+	gpio_direction_output(PCM5142_DAC_ONE_MUTE, 1);
+	gpio_direction_output(PCM5142_DAC_TWO_MUTE, 1);
+}
+
+static int snd_allo_piano_set_bias_level(struct snd_soc_card *card,
+					struct snd_soc_dapm_context *dapm,
+					enum snd_soc_bias_level level)
+{
+	struct snd_soc_dai *codec_dai = card->rtd[0].codec_dai;
+
+	if (dapm->dev != codec_dai->dev)
+		return 0;
+
+	switch (level) {
+	case SND_SOC_BIAS_PREPARE:
+		if (dapm->bias_level != SND_SOC_BIAS_STANDBY)
+			break;
+		/* UNMUTE DAC */
+		snd_allo_piano_gpio_unmute(card);
+		break;
+
+	case SND_SOC_BIAS_STANDBY:
+		if (dapm->bias_level != SND_SOC_BIAS_PREPARE)
+			break;
+		/* MUTE DAC */
+		snd_allo_piano_gpio_mute(card);
+		break;
+
+	default:
+		break;
 	}
 
 	return 0;
