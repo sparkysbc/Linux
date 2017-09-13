@@ -470,7 +470,7 @@ static int aotg_ep_disable(struct usb_ep *_ep)
 		ep->ring = NULL;
 	}
 
-	spin_unlock_irqrestore(&udc->lock, flags);\
+	spin_unlock_irqrestore(&udc->lock, flags);
 	UDC_DEBUG("<EP DISABLE>%s disable\n", _ep->name);
 	return 0;
 }
@@ -644,8 +644,8 @@ static int aotg_ep_queue(struct usb_ep *_ep, struct usb_request *_req, unsigned 
 		list_add_tail(&req->queue, &ep->queue);
 		UDC_DEBUG("<EP QUEUE>the req of %s is not be done completely,queueing and wait irq kickstart\n", ep->ep.name);
 	}
-	
-	if (ep->bEndpointAddress != 0) {
+	/*patch 0012 */
+	if ((ep->bEndpointAddress != 0) && (ep->ring != NULL)) {
 		if (!is_udc_ring_running(ep)) {
 			aotg_start_udc_ring_transfer(ep, ep->ring->cur_trb);
 		}

@@ -210,7 +210,7 @@ void aotg_dev_plugout_msg(int id)
 {
 	struct aotg_uhost_mon_t *umon = NULL;
 
-	printk("usb%d had been plugged out!\n",id);
+	printk(KERN_DEBUG "usb%d had been plugged out!\n",id);
 	if ((id == 0) && aotg_uhost_mon0) {
 		umon = aotg_uhost_mon0;
 	} else if ((id == 1) && aotg_uhost_mon1) {
@@ -262,8 +262,8 @@ void aotg_uhost_mon_init(struct work_struct *w)
 		usb_setbitsl(USB2_ECS_PLL_LDO_EN,aotg_uhost_mon0->usbecs);
 		usb2_set_dp_500k_15k(aotg_uhost_mon0, 0, 1);
 		wake_lock_init(&aotg_uhost_mon0->aotg_wake_lock, WAKE_LOCK_SUSPEND, "aotg_wake_lock0");
-		printk("start mon 0 ......\n");
-		mod_timer(&aotg_uhost_mon0->hotplug_timer, jiffies + msecs_to_jiffies(1000));    /*usb 2.0 boot wakep */
+		printk(KERN_DEBUG "start mon 0 ......\n");
+		mod_timer(&aotg_uhost_mon0->hotplug_timer, jiffies + msecs_to_jiffies(1));    /*usb 2.0 boot wakep 1000 chd to 1 */
         	if (aotg_udc_enable[0]){
 			aotg_udc_register(0);
 		}
@@ -283,8 +283,8 @@ void aotg_uhost_mon_init(struct work_struct *w)
 		usb_setbitsl(USB2_ECS_PLL_LDO_EN,aotg_uhost_mon1->usbecs);
 		usb2_set_dp_500k_15k(aotg_uhost_mon1, 0, 1);
 		wake_lock_init(&aotg_uhost_mon1->aotg_wake_lock, WAKE_LOCK_SUSPEND, "aotg_wake_lock1");
-		printk("start mon 1 ......\n");
-		mod_timer(&aotg_uhost_mon1->hotplug_timer, jiffies + msecs_to_jiffies(1000));
+		printk(KERN_DEBUG "start mon 1 ......\n");
+		mod_timer(&aotg_uhost_mon1->hotplug_timer, jiffies + msecs_to_jiffies(1));   /*usb 2.0 boot wakep 1000 chgd to 1 */
     		if (aotg_udc_enable[1]){
 			aotg_udc_register(1);
 		}
