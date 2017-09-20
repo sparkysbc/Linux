@@ -645,8 +645,9 @@ static int aotg_ep_queue(struct usb_ep *_ep, struct usb_request *_req, unsigned 
 		UDC_DEBUG("<EP QUEUE>the req of %s is not be done completely,queueing and wait irq kickstart\n", ep->ep.name);
 	}
 	/*patch 0012 */
-	if ((ep->bEndpointAddress != 0) && (ep->ring != NULL)) {
-		if (!is_udc_ring_running(ep)) {
+	if (ep->bEndpointAddress != 0){
+//		if (!is_udc_ring_running(ep)) {
+		if ((!is_udc_ring_running(ep)) && (ep->ring != NULL)) {
 			aotg_start_udc_ring_transfer(ep, ep->ring->cur_trb);
 		}
 	}

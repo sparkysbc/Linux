@@ -1216,6 +1216,7 @@ int finish_td(struct aotg_hcd *acthcd, struct aotg_ring *ring, struct aotg_td *t
 	int num_trbs;
 	int i, trb_tx_len, length = 0;
 	int status;
+	struct aotg_hcep *ep ;
 
 	urb = td->urb;
 	trb = td->trb_vaddr;
@@ -1253,6 +1254,10 @@ int finish_td(struct aotg_hcd *acthcd, struct aotg_ring *ring, struct aotg_td *t
 	if (usb_pipetype(urb->pipe) == PIPE_BULK)
 		aotg_hcd_dump_td(ring, td);
 #endif 
+	/*patch 0014 */
+	ep = (struct aotg_hcep *)urb->ep->hcpriv;
+	if ((ep->error_count) && (ring->type == PIPE_BULK))
+		ep->error_count = 0;
 
 	dequeue_td(ring, td, TD_IN_FINISH);
 
@@ -1273,6 +1278,7 @@ int finish_td(struct aotg_hcd *acthcd, struct aotg_ring *ring, struct aotg_td *t
 	spin_unlock(&acthcd->lock);
 	usb_hcd_giveback_urb(bus_to_hcd(urb->dev->bus), urb, status);
 	spin_lock(&acthcd->lock);
+
 	/* when unlock,maybe list_del(&td->enring_list) in dequeue_td*/
 	if ((urb->ep) && unlikely(!urb->ep->enabled)) {
 		return -1;
@@ -1395,7 +1401,7 @@ void handle_ring_dma_tx(struct aotg_hcd *acthcd, unsigned int irq_mask)
 		ACT_HCD_ERR
 		return;
 	}
-	ep->error_count = 0;
+//	ep->error_count = 0;      /*patch 0014 */
 
 	ring = ep->ring;
 	if (!ring) {
@@ -1405,7 +1411,9 @@ void handle_ring_dma_tx(struct aotg_hcd *acthcd, unsigned int irq_mask)
 
 	if (list_empty(&ep->enring_td_list) || ring_empty(ring))
 		return;
-
+	/*patch 0014*/
+	if ((ep->error_count) && (ring->type != PIPE_BULK))
+		ep->error_count = 0;
 	if (ring->type == PIPE_ISOCHRONOUS) {
 		do {
 			mb();
@@ -1459,6 +1467,7 @@ void handle_ring_dma_tx(struct aotg_hcd *acthcd, unsigned int irq_mask)
 			break;
 		ret = finish_td(acthcd, ring, td);
 	} while (ret == 0);
+
 	
 	if (ret == 1)
 		return;

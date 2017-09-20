@@ -1101,10 +1101,10 @@ static void aotg_hcd_err_handle(struct aotg_hcd *acthcd, u32 irqvector,
 	struct usb_hcd *hcd = aotg_to_hcd(acthcd);
 
 	printk(KERN_DEBUG "hcd ep err ep_num:%d, is_in:%d\n", ep_num, is_in);
-	if (is_in)
-		writew(1 << ep_num, acthcd->base + HCINxERRIRQ0);
-	else
-		writew(1 << ep_num, acthcd->base + HCOUTxERRIRQ0);		
+//	if (is_in)
+//		writew(1 << ep_num, acthcd->base + HCINxERRIRQ0);
+//	else
+//		writew(1 << ep_num, acthcd->base + HCOUTxERRIRQ0);		
 
 	if (ep_num == 0) {
 		ep = acthcd->active_ep0;
@@ -1143,11 +1143,11 @@ static void aotg_hcd_err_handle(struct aotg_hcd *acthcd, u32 irqvector,
 	}
 	
 	err_val = readb(ep->reg_hcerr);
-//	if (is_in) {
-//		writew(1 << ep_num, acthcd->base + HCINxERRIRQ0);
-//	} else {
-//		writew(1 << ep_num, acthcd->base + HCOUTxERRIRQ0);
-//	}
+	if (is_in) {
+		writew(1 << ep_num, acthcd->base + HCINxERRIRQ0);
+	} else {
+		writew(1 << ep_num, acthcd->base + HCOUTxERRIRQ0);
+	}
 
 	err_type = err_val & HCINxERR_TYPE_MASK;
 	printk(KERN_DEBUG "err_type :%x\n",err_type>>2);
@@ -1212,10 +1212,13 @@ static void aotg_hcd_err_handle(struct aotg_hcd *acthcd, u32 irqvector,
 			printk(KERN_DEBUG "td->err_count:%d\n", td->err_count);
 			td->err_count++;
 			
-			if (td->err_count < MAX_ERROR_COUNT) {				
-				writeb(HCINxERR_RESEND, ep->reg_hcerr);  /* resend. */
+//			if (td->err_count < MAX_ERROR_COUNT) {				
+//				writeb(HCINxERR_RESEND, ep->reg_hcerr);  /* resend. */
+//				/*patch 0014 */
+			if ((td->err_count < MAX_ERROR_COUNT) && (ep->error_count < 3)) {
+				writeb(HCINxERR_RESEND, ep->reg_hcerr);
 				return;
-			}		
+			}
 		}
 			if (status == -ETIMEDOUT || status == -EPIPE) {
 					ep->error_count++;
@@ -2154,7 +2157,7 @@ static int aotg_hub_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, unsigned m
 	
 	ep = urb->ep->hcpriv;
 	if ((unlikely(!urb->ep->enabled)) || (likely(ep) && unlikely(ep->error_count > 3))) {
-		printk(KERN_WARNING "ep had been stopped!\n");
+		printk(KERN_WARNING "ep %d had been stopped!\n",ep->epnum);
 		//spin_unlock_irqrestore(&acthcd->lock, flags);
 		//ep = (struct aotg_hcep *)urb->ep->hcpriv;
 		retval = -ENOENT;
@@ -2316,8 +2319,8 @@ static int aotg_hub_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, unsigned m
 		}
 
 		if (!list_empty(&ep->enring_td_list) && !is_ring_running(ep->ring)) {
-		//	if (ep->ring->dequeue_trb != ep->ring->first_trb)  /* patch 0018 */
-		//		aotg_reorder_iso_td(acthcd, ep->ring);
+			if (ep->ring->dequeue_trb != ep->ring->first_trb)  /* patch 0018 */
+				aotg_reorder_iso_td(acthcd, ep->ring);
 			aotg_start_ring_transfer(acthcd, ep, urb);
 		}
 	}
@@ -3317,7 +3320,7 @@ static int aotg_hcd_hub_resume(struct platform_device *pdev)
 		//}
 	}
 	if (port_host_plug_detect[acthcd->id]) {
-		acthcd->hcd_exiting = 1; /*patch 0015 */
+//		acthcd->hcd_exiting = 1; /*patch 0015 */
 		aotg_dev_plugout_msg(acthcd->id);
 	} else {
 		aotg_enable_irq(acthcd);
