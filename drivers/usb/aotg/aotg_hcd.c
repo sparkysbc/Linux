@@ -363,10 +363,10 @@ static void aotg_hcd_release_queue(struct aotg_hcd *acthcd, struct aotg_queue *q
 {
 	int i;
 
-	if (NULL == q)
-		return;
+//	if (NULL == q)
+//		return;
 
-	q->td.trb_vaddr = NULL;
+//	q->td.trb_vaddr = NULL;
 
 	/* release all */
 	if (q == NULL) {
@@ -378,7 +378,7 @@ static void aotg_hcd_release_queue(struct aotg_hcd *acthcd, struct aotg_queue *q
 		}
 		return;
 	}
-
+	q->td.trb_vaddr = NULL;   /*patch 003 */
 	for (i = 0; i < AOTG_QUEUE_POOL_CNT; i++) {
 		if (acthcd->queue_pool[i] == q) {
 			acthcd->queue_pool[i]->in_using = 0;
@@ -737,7 +737,7 @@ static int aotg_hcep_set_split_micro_frame(struct aotg_hcd *acthcd, struct aotg_
 	if (set_val != 0) {
 		ep->reg_hcep_splitcs_val = set_val;
 		writeb(set_val, ep->reg_hcep_splitcs);
-		printk("====reg_hcep_splitcs_val:%x, index:%d\n", set_val, ep->index);
+		printk(KERN_DEBUG "====reg_hcep_splitcs_val:%x, index:%d\n", set_val, ep->index);
 	}
 	return 0;
 }
@@ -948,7 +948,7 @@ static int handle_setup_packet(struct aotg_hcd *acthcd, struct aotg_queue *q)
 #endif
 	if ((q->is_xfer_start) || (ep->q)) {
 		ACT_HCD_DBG
-		printk("q->is_xfer_start:%d\n", q->is_xfer_start);
+		printk(KERN_DEBUG "q->is_xfer_start:%d\n", q->is_xfer_start);
 		return 0;
 	}
 	if (unlikely(!HC_IS_RUNNING(aotg_to_hcd(acthcd)->state))) {
@@ -976,7 +976,7 @@ static int handle_setup_packet(struct aotg_hcd *acthcd, struct aotg_queue *q)
 		writeb(EP0CS_HCSET, acthcd->base + EP0CS);
 		i++;
 		if (i > 2000000) {
-			printk("handle_setup timeout!\n");
+			printk(KERN_WARNING "handle_setup timeout!\n");
 			break;
 		}
 	}
@@ -1100,8 +1100,12 @@ static void aotg_hcd_err_handle(struct aotg_hcd *acthcd, u32 irqvector,
 	u8 reset = 0;
 	struct usb_hcd *hcd = aotg_to_hcd(acthcd);
 
-	printk("hcd ep err ep_num:%d, is_in:%d\n", ep_num, is_in);
-		
+	printk(KERN_DEBUG "hcd ep err ep_num:%d, is_in:%d\n", ep_num, is_in);
+//	if (is_in)
+//		writew(1 << ep_num, acthcd->base + HCINxERRIRQ0);
+//	else
+//		writew(1 << ep_num, acthcd->base + HCOUTxERRIRQ0);		
+
 	if (ep_num == 0) {
 		ep = acthcd->active_ep0;
 		if (ep == NULL) {
@@ -1122,7 +1126,7 @@ static void aotg_hcd_err_handle(struct aotg_hcd *acthcd, u32 irqvector,
 		}
 		if (ep == NULL) {
 			ACT_HCD_ERR
-			printk("is_in:%d, ep_num:%d\n", is_in, ep_num);
+			printk(KERN_DEBUG "is_in:%d, ep_num:%d\n", is_in, ep_num);
 			return;
 		}
 		ring = ep->ring;
@@ -1146,7 +1150,7 @@ static void aotg_hcd_err_handle(struct aotg_hcd *acthcd, u32 irqvector,
 	}
 
 	err_type = err_val & HCINxERR_TYPE_MASK;
-	printk("err_type:%x\n",err_type>>2);
+	printk(KERN_DEBUG "err_type :%x\n",err_type>>2);
 	switch (err_type) {
 	case HCINxERR_NO_ERR:
 	case HCINxERR_OVER_RUN:
@@ -1156,6 +1160,7 @@ static void aotg_hcd_err_handle(struct aotg_hcd *acthcd, u32 irqvector,
 		status = -EREMOTEIO;
 		break;
 	case HCINxERR_STALL:
+//		printk("TEST2");
 		status = -EPIPE;
 		break;
 	case HCINxERR_TIMEOUT:
@@ -1168,12 +1173,12 @@ static void aotg_hcd_err_handle(struct aotg_hcd *acthcd, u32 irqvector,
 		break;
 	//case HCINxERR_SPLIET:
 	default:
-		printk("err_val:0x%x, err_type:%d\n", err_val, err_type);
+		printk(KERN_DEBUG "err_val:0x%x, err_type:%d\n", err_val, err_type);
 		if (is_in) {
-			printk("HCINEP%dSPILITCS:0x%x\n", ep_num, 
+			printk(KERN_DEBUG "HCINEP%dSPILITCS:0x%x\n", ep_num, 
 					readb(acthcd->base + ep_num * 8 + HCEP0SPILITCS));
 		} else { 
-			printk("HCOUTEP%dSPILITCS:0x%x\n", ep_num, 
+			printk(KERN_DEBUG "HCOUTEP%dSPILITCS:0x%x\n", ep_num, 
 					readb(acthcd->base + (ep_num - 1) * 8 + HCOUT1SPILITCS));
 		}
 		status = -EPIPE;
@@ -1204,13 +1209,16 @@ static void aotg_hcd_err_handle(struct aotg_hcd *acthcd, u32 irqvector,
 			    usb_pipeout(urb->pipe)?"HC OUT":"HC IN", ep->index, err_val, (err_val>>2)&0x7);
 	} else {
 		if ((status != -EPIPE) && (status != -ENODEV)) {
-			printk("td->err_count:%d\n", td->err_count);
+			printk(KERN_DEBUG "td->err_count:%d\n", td->err_count);
 			td->err_count++;
 			
-			if (td->err_count < MAX_ERROR_COUNT) {				
-				writeb(HCINxERR_RESEND, ep->reg_hcerr);  /* resend. */
+//			if (td->err_count < MAX_ERROR_COUNT) {				
+//				writeb(HCINxERR_RESEND, ep->reg_hcerr);  /* resend. */
+//				/*patch 0014 */
+			if ((td->err_count < MAX_ERROR_COUNT) && (ep->error_count < 3)) {
+				writeb(HCINxERR_RESEND, ep->reg_hcerr);
 				return;
-			}		
+			}
 		}
 			if (status == -ETIMEDOUT || status == -EPIPE) {
 					ep->error_count++;
@@ -1487,7 +1495,7 @@ static irqreturn_t aotg_hub_irq(struct usb_hcd *hcd)
 	//spin_lock(&acthcd->lock);
 	pdev = to_platform_device(hcd->self.controller);
 	port_no = pdev->id & 0xff;
-#if(0)
+#if 0
 	int i = 0;
 	irqvector = (u32)readb(acthcd->base + IVECT);
 	printk("USBEIEN:0x%x, USBEIRQ:0x%x, ivec:0x%x\n", readb(acthcd->base + USBEIEN),
@@ -1517,7 +1525,7 @@ static irqreturn_t aotg_hub_irq(struct usb_hcd *hcd)
 				writeb(0x1<<2, acthcd->base + OTGIRQ);
 				otg_state = readb(acthcd->base + OTGSTATE);
 
-				printk("port_no:%d OTG IRQ, OTGSTATE: 0x%02X, USBIRQ:0x%02X\n", 
+				printk(KERN_DEBUG "port_no:%d OTG IRQ, OTGSTATE: 0x%02X, USBIRQ:0x%02X\n", 
 					port_no, otg_state,
 					readb(acthcd->base + USBIRQ));
 
@@ -1552,7 +1560,7 @@ static irqreturn_t aotg_hub_irq(struct usb_hcd *hcd)
 					mod_timer(&acthcd->hotplug_timer, jiffies + msecs_to_jiffies(1));
 				}
 			} else {
-				printk("port_no:%d error OTG irq! OTGIRQ: 0x%02X\n", 
+				printk(KERN_DEBUG "port_no:%d error OTG irq! OTGIRQ: 0x%02X\n", 
 					port_no, readb(acthcd->base + OTGIRQ));
 			}
 			break;
@@ -1573,6 +1581,7 @@ static irqreturn_t aotg_hub_irq(struct usb_hcd *hcd)
 #endif
 			break;
 		case UIV_USBRESET:
+			pr_warn("USBRESET IRQ\n"); /*patch 008 */
 			if (acthcd->port & (USB_PORT_STAT_POWER | USB_PORT_STAT_CONNECTION)) {
 				acthcd->speed = USB_SPEED_FULL;	/*FS is the default */
 				acthcd->port |= (USB_PORT_STAT_C_RESET << 16);
@@ -1596,15 +1605,18 @@ static irqreturn_t aotg_hub_irq(struct usb_hcd *hcd)
 					acthcd->port |= USB_PORT_STAT_HIGH_SPEED;
 					writeb(USBIRQ_HS, acthcd->base + USBIRQ);
 					HCD_DEBUG("%s: USB device is  HS\n", __func__);
+		//			printk("%s: USB device is  HS\n", __func__);
 				} else if (readb(acthcd->base + USBCS) & USBCS_LSMODE) {
 					acthcd->speed = USB_SPEED_LOW;
 					acthcd->port |= USB_PORT_STAT_LOW_SPEED;
 					HCD_DEBUG("%s: USB device is  LS\n", __func__);
+		//			 printk("%s: USB device is  LS\n", __func__);
 				} else {
 					acthcd->speed = USB_SPEED_FULL;
 					HCD_DEBUG("%s: USB device is  FS\n", __func__);
+		//			 printk("%s: USB device is  FS\n", __func__);
 				}
-	
+				 printk("%s: USB device is %d  \n", __func__, acthcd->speed);
 				/*usb_clearbitsb(USBIEN_URES,USBIEN);*/ /*disable reset irq */
 				/*khu del for must enable USBIEN_URES again*/
 				writew(0xffff, acthcd->base + HCINxERRIRQ0);
@@ -1647,12 +1659,12 @@ static irqreturn_t aotg_hub_irq(struct usb_hcd *hcd)
 
 		default:
 			if ((irqvector >= UIV_HCOUT0ERR) && (irqvector <= UIV_HCOUT15ERR)) {
-				printk("irqvector:%d, 0x%x\n", irqvector, irqvector);
+				printk(KERN_DEBUG "irqvector:%d, 0x%x\n", irqvector, irqvector);
 				aotg_hcd_err_handle(acthcd, irqvector, (irqvector - UIV_HCOUT0ERR), 0);
 				break;
 			}
 			if ((irqvector >= UIV_HCIN0ERR) && (irqvector <= UIV_HCIN15ERR)) {				
-				printk("irqvector:%d, 0x%x\n", irqvector, irqvector);
+				printk(KERN_DEBUG "irqvector:%d, 0x%x\n", irqvector, irqvector);
 				aotg_hcd_err_handle(acthcd, irqvector, (irqvector - UIV_HCIN0ERR), 1);
 				break;
 			}
@@ -1778,8 +1790,8 @@ static inline int aotg_print_ep_timeout(struct aotg_hcep *ep)
 
 		if (time_after(jiffies, ep->q->timeout)) {
 			ret = 1;
-			printk("ep->index:%x ep->mask:%x\n", ep->index, ep->mask);
-			printk("timeout:0x%x!\n", (unsigned int)ep->q->timeout);
+			printk(KERN_DEBUG "ep->index:%x ep->mask:%x\n", ep->index, ep->mask);
+			printk(KERN_WARNING "timeout:0x%x!\n", (unsigned int)ep->q->timeout);
 			ep->q->timeout = jiffies + HZ;
 		}
 	}
@@ -1863,7 +1875,7 @@ void aotg_hub_trans_wait_timer(unsigned long data)
 
 		if (ep->fifo_busy) {
 			if ((ep->fifo_busy > 80) && (ep->fifo_busy % 80 == 0))  {
-				printk("ep->fifo_busy:%d\n", ep->fifo_busy);
+				printk(KERN_DEBUG "ep->fifo_busy:%d\n", ep->fifo_busy);
 			}
 			if (ret == 0) {
 				tasklet_hi_schedule(&acthcd->urb_tasklet);
@@ -1977,8 +1989,9 @@ static struct aotg_hcep	*aotg_hcep_alloc(struct usb_hcd *hcd, struct urb *urb)
 		retval = -ENOMEM;
 		goto exit;
 	}
-
-	ep->udev = usb_get_dev(urb->dev);
+	
+//	ep->udev = usb_get_dev(urb->dev);
+	ep->udev =urb->dev; //can't use [usb_get_dev()], or will  memLeak when usbhHcd exit
 	ep->epnum = usb_pipeendpoint(pipe);
 	ep->maxpacket = usb_maxpacket(ep->udev, urb->pipe, is_out);
 	ep->type = type;
@@ -1996,7 +2009,7 @@ static struct aotg_hcep	*aotg_hcep_alloc(struct usb_hcd *hcd, struct urb *urb)
 		if (urb->dev->tt) {
 			/* calculate in ns. */
 			think_time = (urb->dev->tt->think_time / 666);
-			printk("think_time:%d\n", think_time);
+			printk(KERN_DEBUG "think_time:%d\n", think_time);
 			if (think_time <= 0) {
 				think_time = 1;
 			} else if (think_time > 4) {
@@ -2004,7 +2017,7 @@ static struct aotg_hcep	*aotg_hcep_alloc(struct usb_hcd *hcd, struct urb *urb)
 			}
 			think_time = think_time * 20;
 			writeb(think_time, acthcd->base + HCTRAINTERVAL);
-			printk("think_time:0x%x\n", readb(acthcd->base + HCTRAINTERVAL));
+			printk(KERN_DEBUG "think_time:0x%x\n", readb(acthcd->base + HCTRAINTERVAL));
 			//printk("urb->dev->tt->hub:%p \n", urb->dev->tt->hub);
 		}
 
@@ -2088,7 +2101,7 @@ static struct aotg_hcep	*aotg_hcep_alloc(struct usb_hcd *hcd, struct urb *urb)
 		ep->interval = urb->ep->desc.bInterval;
 		writeb(ep->interval, ep->reg_hcep_interval);
 		usb_setb(ep->iso_packets << 4, ep->reg_hcepcon);
-		printk("iso_packets:%d, bInterval:%d, urb_interval:%d, reg_con:0x%x\n",
+		printk(KERN_DEBUG "iso_packets:%d, bInterval:%d, urb_interval:%d, reg_con:0x%x\n",
 					ep->iso_packets, ep->interval, urb->interval, readb(ep->reg_hcepcon));				
 		break;
 
@@ -2122,7 +2135,7 @@ static int aotg_hub_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, unsigned m
 	int retval = 0;
 	
 	if ((acthcd == NULL) || (act_hcd_ptr[acthcd->id] == NULL)) {
-		printk("aotg_hcd device had been removed...\n");
+		printk(KERN_WARNING "aotg_hcd device had been removed...\n");
 		return -EIO;
 	}
 
@@ -2144,7 +2157,7 @@ static int aotg_hub_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, unsigned m
 	
 	ep = urb->ep->hcpriv;
 	if ((unlikely(!urb->ep->enabled)) || (likely(ep) && unlikely(ep->error_count > 3))) {
-		printk("ep had been stopped!\n");
+		printk(KERN_WARNING "ep %d had been stopped!\n",ep->epnum);
 		//spin_unlock_irqrestore(&acthcd->lock, flags);
 		//ep = (struct aotg_hcep *)urb->ep->hcpriv;
 		retval = -ENOENT;
@@ -2237,7 +2250,7 @@ static int aotg_hub_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, unsigned m
 		if (unlikely(ep->ring->intr_inited == 0)) {
 			retval = aotg_ring_enqueue_intr_td(acthcd, ep->ring, ep, urb, GFP_ATOMIC);
 			if (retval) {
-				printk("%s, intr urb enqueue err!\n", __FUNCTION__);
+				printk(KERN_WARNING "%s, intr urb enqueue err!\n", __FUNCTION__);
 				goto exit1;
 			}
 			ep->ring->intr_started = 0;
@@ -2255,7 +2268,7 @@ static int aotg_hub_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, unsigned m
 		if (unlikely(ep->ring->enqueue_trb->hw_buf_len != urb->transfer_buffer_length)) {
 			//printk("ep:%p,hw_buf_len:%d, urb_len:%d .......\n",ep,ep->ring->enqueue_trb->hw_buf_len,urb->transfer_buffer_length);
 			aotg_intr_chg_buf_len(acthcd,ep->ring,urb->transfer_buffer_length);
-			printk("WARNNING:interrupt urb length changed......\n");
+			printk(KERN_WARNING "WARNNING:interrupt urb length changed......\n");
 		}
 
 		if (ep->ring->intr_started == 0) {
@@ -2306,7 +2319,7 @@ static int aotg_hub_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, unsigned m
 		}
 
 		if (!list_empty(&ep->enring_td_list) && !is_ring_running(ep->ring)) {
-			if (ep->ring->dequeue_trb != ep->ring->first_trb)
+			if (ep->ring->dequeue_trb != ep->ring->first_trb)  /* patch 0018 */
 				aotg_reorder_iso_td(acthcd, ep->ring);
 			aotg_start_ring_transfer(acthcd, ep, urb);
 		}
@@ -2319,7 +2332,7 @@ exit1:
 	usb_hcd_unlink_urb_from_ep(hcd, urb);
 exit0:
 	/* FIXME */
-	printk("never goto here, need to just\n");
+	printk(KERN_WARNING "never goto here, need to just\n");
 	if (unlikely(retval < 0) && ep) {
 		if (type == PIPE_CONTROL)	{
 			ACT_HCD_ERR
@@ -2362,7 +2375,7 @@ static int aotg_hub_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status
 	int retval = 0;
 	
 	if ((acthcd == NULL) || (act_hcd_ptr[acthcd->id] == NULL)) {
-		printk("aotg_hcd device had been removed...\n");
+		printk(KERN_WARNING "aotg_hcd device had been removed...\n");
 		return -EIO;
 	}
 
@@ -2370,7 +2383,7 @@ static int aotg_hub_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status
 
 	retval = usb_hcd_check_unlink_urb(hcd, urb, status);
 	if (retval) {
-		printk("%s, retval:%d, urb not submitted or unlinked\n", __FUNCTION__, 
+		printk(KERN_WARNING "%s, retval:%d, urb not submitted or unlinked\n", __FUNCTION__, 
 				retval);
 		goto dequeue_out;
 	}
@@ -2394,7 +2407,7 @@ static int aotg_hub_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status
 					goto de_bulk;				
 				}
 			}
-			printk("%s, intr dequeue err\n", __FUNCTION__);
+			printk(KERN_WARNING "%s, intr dequeue err\n", __FUNCTION__);
 		}
 
 		list_for_each_entry_safe(td, next_td, &ep->queue_td_list, queue_list) {
@@ -2473,7 +2486,7 @@ de_bulk:
 		return retval;
 	} else {
 		ACT_HCD_ERR
-		printk("dequeue's urb not find in enqueue_list!\n");
+		printk(KERN_WARNING "dequeue's urb not find in enqueue_list!\n");
 	}	
 
 dequeue_out:
@@ -2501,7 +2514,7 @@ void urb_tasklet_func(unsigned long data)
 		status = (int)spin_is_locked(&acthcd->tasklet_lock);
 		if (status) {
 			acthcd->tasklet_retry = 1;
-			printk("locked, urb retry later!\n");
+			printk(KERN_WARNING "locked, urb retry later!\n");
 			return;
 		}
 		cnt++;
@@ -2512,7 +2525,7 @@ void urb_tasklet_func(unsigned long data)
 		status = spin_trylock(&acthcd->tasklet_lock);
 		if ((!status) && (cnt > 10))  {
 			acthcd->tasklet_retry = 1;
-			printk("urb retry later!\n");
+			printk(KERN_WARNING "urb retry later!\n");
 			return;
 		}
 	} while (status == 0);
@@ -2610,7 +2623,7 @@ DO_FINISH_TASK:
 				//ACT_HCD_DBG
 				if ((acthcd->ep0_block_cnt % 10) == 0) {
 					ACT_HCD_DBG
-					printk("cnt:%d\n", acthcd->ep0_block_cnt);
+					printk(KERN_DEBUG "cnt:%d\n", acthcd->ep0_block_cnt);
 					acthcd->ep0_block_cnt = 0;
 					//aotg_hub_urb_dequeue(hcd, acthcd->active_ep0->q->urb, -ETIMEDOUT);
 				}
@@ -2729,11 +2742,11 @@ static void aotg_hub_endpoint_disable(struct usb_hcd *hcd, struct usb_host_endpo
 	hep->hcpriv = NULL;
 
 	if(ep->ring){
-		printk("%s\n", __FUNCTION__);
+		printk(KERN_DEBUG "%s\n", __FUNCTION__);
 		
 		aotg_stop_ring(ep->ring);
 		if (ep->ring->type == PIPE_INTERRUPT) {
-			printk("%s, ep%d dma buf free\n", __FUNCTION__, ep->index);
+			printk(KERN_DEBUG "%s, ep%d dma buf free\n", __FUNCTION__, ep->index);
 			aotg_intr_dma_buf_free(acthcd, ep->ring);
 		}
 			
@@ -2996,6 +3009,12 @@ static int aotg_hub_control(struct usb_hcd *hcd,
 			port_power(acthcd, 1);
 			break;
 		case USB_PORT_FEAT_RESET:
+		/*  patch 008 below 5 lines*/
+		if (acthcd->hcd_exiting) {
+				retval = -ENODEV;
+				pr_warn("aotg reset port, return -ENODEV\n");
+				break;
+			}
 			port_reset(acthcd);
 			/* if it's already enabled, disable */
 			acthcd->port &= ~(USB_PORT_STAT_ENABLE
@@ -3005,6 +3024,7 @@ static int aotg_hub_control(struct usb_hcd *hcd,
 			mdelay(2);
 			acthcd->rhstate = AOTG_RH_RESET;
 			usb_setbitsb(USBIEN_URES, acthcd->base + USBIEN);
+			pr_err("set port reset!%x\n", readb(acthcd->base + USBEIEN)); /* patch 008 */
 			/*enable reset irq */
 			break;
 		case USB_PORT_FEAT_SUSPEND:
@@ -3094,18 +3114,26 @@ static int aotg_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 {
 	int ret = 0;
 
-	if (usb_pipetype(urb->pipe) != PIPE_INTERRUPT) {
-		ret = usb_hcd_map_urb_for_dma(hcd, urb, mem_flags);
-	}
+//	if (usb_pipetype(urb->pipe) != PIPE_INTERRUPT) { /*patch 002 */
+	if (usb_pipetype(urb->pipe) == PIPE_INTERRUPT && usb_pipein(urb->pipe))
+		return ret;
+	ret = usb_hcd_map_urb_for_dma(hcd, urb, mem_flags);
+
+//		ret = usb_hcd_map_urb_for_dma(hcd, urb, mem_flags);
+//	}
 	return ret;
 }
 
 static void aotg_unmap_urb_for_dma(struct usb_hcd *hcd, struct urb *urb)
 {
-	if (usb_pipetype(urb->pipe) != PIPE_INTERRUPT) {
+//	if (usb_pipetype(urb->pipe) != PIPE_INTERRUPT) {
 
-		usb_hcd_unmap_urb_for_dma(hcd, urb);
-	}
+//		usb_hcd_unmap_urb_for_dma(hcd, urb);
+//	}   
+  /*patch 002 */
+	if (usb_pipetype(urb->pipe) == PIPE_INTERRUPT && usb_pipein(urb->pipe))
+		return;
+	usb_hcd_unmap_urb_for_dma(hcd, urb);
 	return;
 }
 
@@ -3175,7 +3203,7 @@ static int aotg_hub_remove(struct platform_device *pdev)
 	remove_debug_file(acthcd);
 	iounmap(hcd->regs);
 	release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
-	//aotg_hcd_release_queue(acthcd, NULL);
+	aotg_hcd_release_queue(acthcd, NULL);   /*patch 003 uncomment */
 	owl_powergate_power_off(acthcd->id == 0 ? OWL_POWERGATE_USB2_0 : OWL_POWERGATE_USB2_1);
 
 	for (i = 0; i < MAX_EP_NUM; i++) {
@@ -3212,7 +3240,7 @@ static int aotg_hub_remove(struct platform_device *pdev)
 	}
 	
 	usb_put_hcd(hcd);
-	printk("pdev->id remove:%d\n", pdev->id);
+	printk(KERN_DEBUG "pdev->id remove:%d\n", pdev->id);
 	
 	if (!port_host_plug_detect[acthcd->id])
 		aotg_power_onoff(pdev->id,0);
@@ -3292,6 +3320,7 @@ static int aotg_hcd_hub_resume(struct platform_device *pdev)
 		//}
 	}
 	if (port_host_plug_detect[acthcd->id]) {
+//		acthcd->hcd_exiting = 1; /*patch 0015 */
 		aotg_dev_plugout_msg(acthcd->id);
 	} else {
 		aotg_enable_irq(acthcd);
@@ -3304,7 +3333,7 @@ void aotg_hcd_shutdown(struct platform_device *pdev)
 {	
 	struct usb_hcd *hcd	= platform_get_drvdata(pdev);
 	struct aotg_hcd	*acthcd	= hcd_to_aotg(hcd);
-	printk("usb2-%d shutdown\n", acthcd->id);
+	printk(KERN_INFO "usb2-%d shutdown\n", acthcd->id);
 	
 	//gpio_set_value_cansleep(vbus_otg_en_gpio[pdev->id][0], 0);
 	aotg_power_onoff(pdev->id,0);
