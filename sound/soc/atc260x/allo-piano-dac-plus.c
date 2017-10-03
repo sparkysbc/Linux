@@ -276,6 +276,7 @@ static int snd_allo_piano_dual_mode_put(struct snd_kcontrol *kcontrol,
 			glb_ptr->set_mode = 0;
 		} else {
 			glb_ptr->dual_mode = 0;
+			return 0;
 		}
 	}
 
@@ -435,6 +436,9 @@ static int pcm512x_set_reg_sub(struct snd_kcontrol *kcontrol,
 			return ret;
 	}
 
+	if (digital_gain_0db_limit)
+                mc->platform_max = 207;
+
 	ret = pcm512x_set_reg(1,
 			PCM512x_DIGITAL_VOLUME_3, (~right_val));
 	if (ret < 0)
@@ -520,6 +524,9 @@ static int pcm512x_set_reg_master(struct snd_kcontrol *kcontrol,
 	unsigned int left_val = (ucontrol->value.integer.value[0] & mc->max);
 	unsigned int right_val = (ucontrol->value.integer.value[1] & mc->max);
 	int ret = 0;
+
+	if (digital_gain_0db_limit)
+                mc->platform_max = 207;
 
 	if (glb_ptr->dual_mode != 1) {
 		ret = pcm512x_set_reg(1, PCM512x_DIGITAL_VOLUME_2, 
@@ -667,7 +674,7 @@ static int snd_allo_piano_dac_init(struct snd_soc_pcm_runtime *rtd)
 		return -ENOMEM;
 
 	card->drvdata = glb_ptr;
-
+	glb_ptr->dual_mode = 2;
 	mutex_init(&glb_ptr->lock);
 
 	if (digital_gain_0db_limit) {
