@@ -14,6 +14,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_L3
 	select SND_SOC_AB8500_CODEC if ABX500_CORE
 	select SND_SOC_AC97_CODEC if SND_SOC_AC97_BUS
+#	select SND_SOC_PCM5102A 
 	select SND_SOC_AD1836 if SPI_MASTER
 	select SND_SOC_AD193X if SND_SOC_I2C_AND_SPI
 	select SND_SOC_AD1980 if SND_SOC_AC97_BUS
@@ -82,6 +83,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_WM2000 if I2C
 	select SND_SOC_WM2200 if I2C
 	select SND_SOC_WM5100 if I2C
+        }
 	select SND_SOC_WM5102 if MFD_WM5102
 	select SND_SOC_WM5110 if MFD_WM5110
 	select SND_SOC_WM8350 if MFD_WM8350
@@ -304,6 +306,13 @@ config SND_SOC_PCM512x_I2C
         help
           Say Y or M if you want to add support for PCM512x-i2c audiocodec.
 
+config SND_SOC_PCM5102A 
+        tristate "Texas Instruments PCM5102A CODECs"
+        #default n
+        #select SND_SOC_PCM5102A
+        help
+          Say Y or M if you want to add support for PCM512x-i2c audiocodec.  
+	
 config SND_SOC_RT5631
 	tristate
 

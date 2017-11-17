@@ -27,8 +27,16 @@ config SND_SOC_ALL_PMU_OWL
 	select SND_SOC_ATC2603C
 	help
 	  Say Y if you want to add support for SoC audio on atc2603a-based
-	  ATM7059 board.	  
-
+	  ATM7059 board.	
+ 
+config SND_SOC_ALLO_HIFI_DAC
+        tristate "SoC Audio support for allo PCM5102DAC"
+        select SND_SOC_OWL
+        select SND_SOC_HDMI_OWL
+        select SND_SOC_DAI_OWL
+        help
+          Say Y if you want to add support for SoC audio on PCM5102
+	  board.
 config SND_SOC_ALLO_PIANO_DAC
 	tristate "SoC Audio support for allo PianoDAC"
 	select SND_SOC_OWL

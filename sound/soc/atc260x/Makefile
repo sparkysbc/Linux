@@ -7,6 +7,7 @@ snd-soc-spdif-owl-objs			:=	spdif-owl.o
 snd-soc-pcm-owl-objs			:=	pcm-owl.o dmaengine-pcm-owl.o
 snd-soc-link-owl-objs			:=	link-owl.o
 snd-soc-allo-piano-dac-objs		:=	allo-piano-dac.o
+snd-soc-allo-hifi-dac-objs              :=      allo-hifi-dac.o
 snd-soc-allo-piano-dac-plus-objs	:=	allo-piano-dac-plus.o
 
 obj-$(CONFIG_SND_SOC_OWL) += snd-soc-pcm-owl.o
@@ -19,4 +20,5 @@ obj-y += snd-soc-spdif-owl.o
 # ATC2603A PMU Machine Support
 obj-$(CONFIG_SND_SOC_ALL_PMU_OWL) += snd-soc-link-owl.o
 obj-$(CONFIG_SND_SOC_ALLO_PIANO_DAC) += snd-soc-allo-piano-dac.o
+obj-$(CONFIG_SND_SOC_ALLO_HIFI_DAC) += snd-soc-allo-hifi-dac.o
 obj-$(CONFIG_SND_SOC_ALLO_PIANO_DAC_PLUS) += snd-soc-allo-piano-dac-plus.o
