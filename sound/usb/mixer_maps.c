@@ -280,6 +280,23 @@ static struct usbmix_name_map aureon_51_2_map[] = {
 	/* 15: MU */
 	{} /* terminator */
 };
+//added for dragonfly
+/* Bose companion 5, the dB conversion factor is 16 instead of 256 */ 
+static struct usbmix_dB_map bose_companion5_dB = {-5006, -6}; 
+	static struct usbmix_name_map bose_companion5_map[] = { 
+		{ 3, NULL, .dB = &bose_companion5_dB }, 
+		{ 0 }	/* terminator */ 
+	}; 
+	 
+	/* Dragonfly DAC 1.2, the dB conversion factor is 1 instead of 256 */ 
+	//static struct usbmix_dB_map dragonfly_1_2_dB = {0, 5000}; 
+	//static struct usbmix_name_map dragonfly_1_2_map[] = { 
+	//	{ 7, NULL, .dB = &dragonfly_1_2_dB }, 
+		//{ 0 }	/* terminator */ 
+//	};
+
+
+
 
 static struct usbmix_name_map scratch_live_map[] = {
 	/* 1: IT Line 1 (USB streaming) */
@@ -418,6 +435,18 @@ static struct usbmix_ctl_map usbmix_ctl_maps[] = {
 		.id = USB_ID(0x27ac, 0x1000),
 		.map = kef_x300a_map,
 	},
+	//added for dragon fly
+        { 
+		/* Bose Companion 5 */ 
+		.id = USB_ID(0x05a7, 0x1020), 
+		.map = bose_companion5_map, 
+	}, 
+//	{ 
+//		/* Dragonfly DAC 1.2 */ 
+//		.id = USB_ID(0x21b4, 0x0081), 
+//		.map = dragonfly_1_2_map, 
+//
+//	},
 	{ 0 } /* terminator */
 };
 

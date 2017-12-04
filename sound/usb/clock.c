@@ -300,6 +300,11 @@ static int set_sample_rate_v1(struct snd_usb_audio *chip, int iface,
 			   dev->devnum, iface, fmt->altsetting, rate, ep);
 		return err;
 	}
+	
+	 /* Don't check the sample rate for devices which we know don't
+ *          * support reading */
+        if (snd_usb_get_sample_rate_quirk(chip))     //added for Dragonfly
+                return 0;
 
 	if ((err = snd_usb_ctl_msg(dev, usb_rcvctrlpipe(dev, 0), UAC_GET_CUR,
 				   USB_TYPE_CLASS | USB_RECIP_ENDPOINT | USB_DIR_IN,
