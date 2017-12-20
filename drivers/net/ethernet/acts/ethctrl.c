@@ -859,7 +859,7 @@ void print_mac_register(ec_priv_t *ecp)
 static int ec_mdio_read(struct net_device *dev, int phy_addr, int reg_addr)
 {
     ec_priv_t *ecp = netdev_priv(dev);
-    printk(KERN_DEBUG"read phy reg-%x\n", reg_addr);
+    //printk(KERN_DEBUG"read phy reg-%x\n", reg_addr);  // test sud
     return (read_phy_reg(ecp, reg_addr));
 }
 
@@ -1798,6 +1798,7 @@ static void subisr_enet_tx(ec_priv_t *ecp)
 static void subisr_enet_rx(ec_priv_t *ecp)
 {
 	struct net_device *dev = ecp->netdev;
+	volatile ethregs_t *hw_regs = ecp->hwrp;
 	volatile ec_bd_t *bdp;
 	struct sk_buff *new_skb;
 	struct sk_buff *skb_to_upper;
@@ -1816,6 +1817,11 @@ static void subisr_enet_rx(ec_priv_t *ecp)
 	if (unlikely(netif_msg_rx_err(ecp)))
 		printk(KERN_INFO"bdp: 0x%p\n", bdp);
 #endif
+	/*patch 0004 */
+	if (0xFFFFFFFF == hw_regs->er_rxstats[16]) {
+		/* er_rxstats[16], RxOctOK, read clear */
+		printk("Just for clear RxOctOK register\n");
+	}
 
 	while (0 == ((status = bdp->status) & RXBD_STAT_OWN)) {
 		//printk("bdp->status:0x%08lx\n", bdp->status);
@@ -1834,7 +1840,7 @@ static void subisr_enet_rx(ec_priv_t *ecp)
 		* 5302 ether phy. Don't care it now, it'll be fixed in 5203. */
 		//if (status & (RXBD_STAT_ES | RXBD_STAT_DB))
 		if (status & RX_ERROR_CARED) {
-			printk(KERN_ERR"%d: RX_ERROR status:0x%08lx\n", __LINE__, status);
+	//		printk(KERN_ERR"%d: RX_ERROR status:0x%08lx\n", __LINE__, status);
 			dev->stats.rx_errors++;
 			if (status & RXBD_STAT_TL)
 				dev->stats.rx_length_errors++;
@@ -2153,8 +2159,15 @@ static irqreturn_t ec_netmac_isr(int irq, void *cookie)
             subisr_enet_tx(ecp);
 			tx_cnt = 0;
 			mac_status = status & EC_STATUS_RSM;
-			if((mac_status == EC_RX_fetch_dsp)||(mac_status ==EC_RX_run_dsp)||(mac_status ==EC_RX_close_dsp) )
-				rx_cnt++;
+		/*patch 004 */
+		//	if((mac_status == EC_RX_fetch_dsp)||(mac_status ==EC_RX_run_dsp)||(mac_status ==EC_RX_close_dsp) )
+		//		rx_cnt++;
+		if ((mac_status == EC_RX_fetch_dsp)
+				||(mac_status ==EC_RX_run_dsp)
+				||(mac_status ==EC_RX_close_dsp)) {
+				/* if successfully received frame, clear rx_cnt, or rx_cnt++ */
+				rx_cnt = (hw_regs->er_rxstats[16])? 0 : (rx_cnt+1);
+			}
         }
 
         /* RI & RU may come at same time, if RI handled, then RU needn't handle.
