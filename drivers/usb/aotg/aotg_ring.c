@@ -1435,8 +1435,8 @@ void handle_ring_dma_tx(struct aotg_hcd *acthcd, unsigned int irq_mask)
 		}
 
 		if (!list_empty(&ep->enring_td_list) && !is_ring_running(ring)) {
-		//	if (ring->dequeue_trb != ring->first_trb) /* patch 0018 */
-		//		aotg_reorder_iso_td(acthcd, ring);
+			if (ring->dequeue_trb != ring->first_trb) /* patch 0018 NA*/
+				aotg_reorder_iso_td(acthcd, ring);
 			aotg_start_ring(ring, ring_trb_virt_to_dma(ring, ring->dequeue_trb));
 		}
 		else if (list_empty(&ep->enring_td_list) && is_ring_running(ring)) {

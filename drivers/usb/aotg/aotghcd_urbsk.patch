@@ -1,0 +1,13 @@
+--- aotg_hcd.c	2017-12-22 10:33:27.760726424 +0530
++++ /imxhdd/opt/1301TAG/sparky_volumio/kernel/drivers/usb/aotg/aotg_hcd.c	2017-12-22 10:45:19.772705294 +0530
+@@ -2388,6 +2388,10 @@
+ 	spin_lock_irqsave(&acthcd->lock, flags);
+ 
+ 	retval = usb_hcd_check_unlink_urb(hcd, urb, status);
++	/*patch sk type 0 for isochronous*/
++	if ((urb_fix)&&(type==0)){
++		retval = usb_hcd_check_unlink_urb(hcd, urb, status);
++	}
+ 	if (retval) {
+ 		if(!urb_fix){
+ 		printk(KERN_WARNING "%s, retval:%d, urb not submitted or unlinked , type = %x \n", __FUNCTION__, 

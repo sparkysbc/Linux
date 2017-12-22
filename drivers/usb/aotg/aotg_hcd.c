@@ -74,6 +74,11 @@ int hcd_ports_en_ctrl = 0;
 static int handle_setup_packet(struct aotg_hcd *acthcd, struct aotg_queue *q);
 static void handle_hcep0_in(struct aotg_hcd *acthcd);
 static void handle_hcep0_out(struct aotg_hcd *acthcd);
+
+static int urb_fix = 1;
+module_param(urb_fix, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(urb_fix, "urb_fix default is 0, 1 to enable");
+
 //static int aotg_hcd_flush_queue(struct aotg_hcd *acthcd);
 #if 0
 #ifdef	CONFIG_PM
@@ -2319,7 +2324,7 @@ static int aotg_hub_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, unsigned m
 		}
 
 		if (!list_empty(&ep->enring_td_list) && !is_ring_running(ep->ring)) {
-			if (ep->ring->dequeue_trb != ep->ring->first_trb)  /* patch 0018 */
+			if (ep->ring->dequeue_trb != ep->ring->first_trb)  /* patch 0018 NA*/
 				aotg_reorder_iso_td(acthcd, ep->ring);
 			aotg_start_ring_transfer(acthcd, ep, urb);
 		}
@@ -2373,6 +2378,7 @@ static int aotg_hub_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status
 	struct aotg_td *td, *next_td;
 	unsigned long flags;
 	int retval = 0;
+	int type = usb_pipetype(urb->pipe);
 	
 	if ((acthcd == NULL) || (act_hcd_ptr[acthcd->id] == NULL)) {
 		printk(KERN_WARNING "aotg_hcd device had been removed...\n");
@@ -2383,8 +2389,10 @@ static int aotg_hub_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status
 
 	retval = usb_hcd_check_unlink_urb(hcd, urb, status);
 	if (retval) {
-		printk(KERN_WARNING "%s, retval:%d, urb not submitted or unlinked\n", __FUNCTION__, 
-				retval);
+		if(!urb_fix){
+		printk(KERN_WARNING "%s, retval:%d, urb not submitted or unlinked , type = %x \n", __FUNCTION__, 
+				retval, type);
+		}
 		goto dequeue_out;
 	}
 

@@ -84,6 +84,14 @@ static int aotg1_tx_bias = -1;
 module_param(aotg1_tx_bias, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(aotg1_tx_bias, "aotg1_tx_bias");
 
+static int aotg1_speed = 0;
+module_param(aotg1_speed, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(aotg1_speed, "port1 aotg1_speed default 0 high speed , 1 full speed");
+
+static int aotg0_speed = 0;
+module_param(aotg0_speed, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(aotg0_speed, "port0 aotg0_speed default 0 high speed , 1 full speed");
+
 struct aotg_udc *acts_udc_controller;
 unsigned int port_device_enable[2];
 int vbus_otg_en_gpio[2][2];
@@ -233,10 +241,19 @@ static int aotg_controller_reset(int id)
 	void __iomem *usb_reset;
 	int i = 0;
 
-	if (id)
+	if (id){
 		data = &aotg_data1;
-	else
+		if (aotg1_speed){
+                        data->no_hs=1;
+                }
+	}
+	else{
 		data = &aotg_data0;
+		if (aotg0_speed){
+                        data->no_hs=1;
+                }
+
+	}
 	usb_clearbitsl(data->devrst_bits, data->devrst);
 	udelay(1);
 	usb_setbitsl(data->devrst_bits, data->devrst);
