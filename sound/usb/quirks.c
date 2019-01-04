@@ -987,11 +987,13 @@ u64 snd_usb_interface_dsd_format_quirks(struct snd_usb_audio *chip,
 	case USB_ID(0x22d9, 0x0436): /* OPPO Sonica */
 	case USB_ID(0x22d9, 0x0461): /* OPPO UDP-205 */
 	case USB_ID(0x2522, 0x0012): /* LH Labs VI DAC Infinity */
+	case USB_ID(0x2772, 0x0230): /* Pro-Ject Pre Box S2 Digital */
 	case USB_ID(0x25ce, 0x001f): /* Mytek Brooklyn DAC */
 		if (fp->altsetting == 2)
 			return SNDRV_PCM_FMTBIT_DSD_U32_BE;
 		break;
 
+	case USB_ID(0x16d0, 0x09dd): /* Encore mDSD */
 	case USB_ID(0x0d8c, 0x0316): /* Hegel HD12 DSD */
 	case USB_ID(0x16b0, 0x06b2): /* NuPrime DAC-10 */
 	case USB_ID(0x16d0, 0x0733): /* Furutech ADL Stratos */
@@ -1020,7 +1022,10 @@ u64 snd_usb_interface_dsd_format_quirks(struct snd_usb_audio *chip,
 		break;
 
 	/* Amanero Combo384 USB interface with native DSD support */
-	case USB_ID(0x16d0, 0x071a):
+	case USB_ID(0x16d0, 0x071a):  /* Amanero - Combo384 */
+	case USB_ID(0x2ab6, 0x0004):  /* T+A DAC8DSD-V2.0, MP1000E-V2.0, MP2000R-V2.0, MP2500R-V2.0, MP3100HV-V2.0 */
+	case USB_ID(0x2ab6, 0x0005):  /* T+A USB HD Audio 1 */
+	case USB_ID(0x2ab6, 0x0006):  /* T+A USB HD Audio 2 */
 		if (fp->altsetting == 2) {
 		//	switch (chip->dev->descriptor.bcdDevice) {
 			switch (le16_to_cpu(chip->dev->descriptor.bcdDevice)) {
@@ -1033,10 +1038,29 @@ u64 snd_usb_interface_dsd_format_quirks(struct snd_usb_audio *chip,
 			}
 		}
                 break;
-
+	case USB_ID(0x16d0, 0x0a23):
+		if (fp->altsetting == 2)
+			return SNDRV_PCM_FMTBIT_DSD_U32_BE;
+		break;
 
 	default:
 		break;
+	}
+
+	/* Mostly generic method to detect many DSD-capable implementations -
+	 * from XMOS/Thesycon
+	 */
+	switch (USB_ID_VENDOR(chip->usb_id)) {
+	case 0x20b1:  /* XMOS based devices */
+	case 0x152a:  /* Thesycon devices */
+	case 0x25ce:  /* Mytek devices */
+		if (fp->dsd_raw) {
+			return SNDRV_PCM_FMTBIT_DSD_U32_BE;
+		}
+		break;
+	default:
+		break;
+
 	}
 
 	return 0;
