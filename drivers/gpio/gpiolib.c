@@ -1634,7 +1634,7 @@ static int gpiod_direction_input(struct gpio_desc *desc)
 		pr_warn("%s: invalid GPIO\n", __func__);
 		return -EINVAL;
 	}
-
+   printk("Registering gpio input on %d\n", desc_to_gpio(desc));
 	spin_lock_irqsave(&gpio_lock, flags);
 
 	chip = desc->chip;
@@ -1695,6 +1695,7 @@ static int gpiod_direction_output(struct gpio_desc *desc, int value)
 		pr_warn("%s: invalid GPIO\n", __func__);
 		return -EINVAL;
 	}
+   printk("Registering gpio output on %d\n", desc_to_gpio(desc));
 
 	/* Open drain pin should not be driven to 1 */
 	if (value && test_bit(FLAG_OPEN_DRAIN,  &desc->flags))
