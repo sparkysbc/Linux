@@ -168,6 +168,8 @@ static void asoc_irkeypad_disable_irq(struct asoc_irkeypad *irkeypad)
 static void asoc_irkeypad_config(struct asoc_irkeypad * irkeypad)
 {
     struct atc260x_dev *atc260x_dev = irkeypad->atc260x_dev;
+	 int mux;
+	 int mask = 0;
 
 	GL5201_IRKEYPAD_INFO("[%s start]\n",__func__);
 
@@ -180,13 +182,37 @@ static void asoc_irkeypad_config(struct asoc_irkeypad * irkeypad)
 		0x0100, 0x0100);    //INTS_MSK bit[8]TR
 
 	/*mfp*/
-        if(irkeypad->ir_ch == 1){
-            atc260x_set_bits(atc260x_dev, ATC2603C_PMU_MUX_CTL0,
-                  0x0003, 0x0002);
-        }else {
-	    atc260x_set_bits(atc260x_dev, ATC2603C_PMU_MUX_CTL0,
-	          0x3000, 0x1000);
-        }
+	/*We want to ensure that there is only one pin connected to IR in register ATC2603C_PMU_MUX_CTL0.*/
+	/*When more than one inputs are connected to Ir it doesn't work.*/
+	/*We check all input muxes and reset them when the input is connected to IR.*/
+	mux = atc260x_reg_read(irkeypad->atc260x_dev,ATC2603C_PMU_MUX_CTL0);
+	if((mux & 0x0003) == 0x0002){
+		mask |= 0x0003;
+	}
+	if((mux & 0x001C) == 0x0008){
+		mask |= 0x001C;
+	}
+	if((mux & 0x00E0) == 0x0040){
+		mask |= 0x00E0;
+	}
+	if((mux & 0x0300) == 0x0200){
+		mask |= 0x0300;
+	}
+	if((mux & 0x0C00) == 0x0800){
+		mask |= 0x0C00;
+	}
+	if((mux & 0x3000) == 0x2000){
+		mask |= 0x3000;
+	}
+	/*Clear all mux bits*/
+	atc260x_set_bits(atc260x_dev, ATC2603C_PMU_MUX_CTL0, mask, 0x0000);
+	if(irkeypad->ir_ch == 1){
+		atc260x_set_bits(atc260x_dev, ATC2603C_PMU_MUX_CTL0,
+				0x0003, 0x0002);
+	}else {
+	atc260x_set_bits(atc260x_dev, ATC2603C_PMU_MUX_CTL0,
+			0x3000, 0x1000);
+	}
 
 	/*wake up*/
 	atc260x_set_bits(atc260x_dev, ATC2603C_PMU_SYS_CTL0,
@@ -749,6 +775,64 @@ static ssize_t atv5201_irkeypad_show(struct device *dev,
 	return ret_size;
 }
 
+static ssize_t atc260x_irkeypad_status_show(struct device *dev,
+						 struct device_attribute *attr,
+						 char *buf)
+{
+	struct asoc_irkeypad *irkeypad = dev_get_drvdata(dev);
+	unsigned int offset = 0;
+
+	if (!irkeypad)
+		return 0;
+
+	offset += scnprintf(buf + offset, PAGE_SIZE - offset,
+		"register atc2603_INTS_PD(0x%04x) value is 0x%04x\n",
+		ATC2603C_INTS_PD, atc260x_reg_read(irkeypad->atc260x_dev,
+		ATC2603C_INTS_PD));
+	offset += scnprintf(buf + offset, PAGE_SIZE - offset,
+		"register atc2603_INTS_MSK(0x%04x) value is 0x%04x\n",
+		ATC2603C_INTS_MSK, atc260x_reg_read(irkeypad->atc260x_dev,
+		ATC2603C_INTS_MSK));
+	offset += scnprintf(buf + offset, PAGE_SIZE - offset,
+		"register atc2603_PMU_SYS_CTL3(0x%04x) value is 0x%04x\n",
+		ATC2603C_PMU_SYS_CTL3, atc260x_reg_read(irkeypad->atc260x_dev,
+		ATC2603C_PMU_SYS_CTL3));
+	offset += scnprintf(buf + offset, PAGE_SIZE - offset,
+		"register atc2603_PMU_SYS_CTL0(0x%04x) value is 0x%04x\n",
+		ATC2603C_PMU_SYS_CTL0, atc260x_reg_read(irkeypad->atc260x_dev,
+		ATC2603C_PMU_SYS_CTL0));
+	offset += scnprintf(buf + offset, PAGE_SIZE - offset,
+		"register atc2603C_PMU_MUX_CTL0(0x%04x) value is 0x%04x\n",
+		ATC2603C_PMU_MUX_CTL0, atc260x_reg_read(irkeypad->atc260x_dev,
+		ATC2603C_PMU_MUX_CTL0));
+	offset += scnprintf(buf + offset, PAGE_SIZE - offset,
+		"register atc2603_IRC_CTL(0x%04x) value is 0x%04x\n",
+		ATC2603C_IRC_CTL, atc260x_reg_read(irkeypad->atc260x_dev,
+		ATC2603C_IRC_CTL));
+	offset += scnprintf(buf + offset, PAGE_SIZE - offset,
+		"register atc2603_IRC_STAT(0x%04x) value is 0x%04x\n",
+		ATC2603C_IRC_STAT, atc260x_reg_read(irkeypad->atc260x_dev,
+		ATC2603C_IRC_STAT));
+	offset += scnprintf(buf + offset, PAGE_SIZE - offset,
+		"register atc2603_IRC_CC(0x%04x) value is 0x%04x\n",
+		ATC2603C_IRC_CC, atc260x_reg_read(irkeypad->atc260x_dev,
+		ATC2603C_IRC_CC));
+	offset += scnprintf(buf + offset, PAGE_SIZE - offset,
+		"register atc2603_IRC_KDC(0x%04x) value is 0x%04x\n",
+		ATC2603C_IRC_KDC, atc260x_reg_read(irkeypad->atc260x_dev,
+		ATC2603C_IRC_KDC));
+	offset += scnprintf(buf + offset, PAGE_SIZE - offset,
+		"register atc2603_IRC_WK(0x%04x) value is 0x%04x\n",
+		ATC2603C_IRC_WK, atc260x_reg_read(irkeypad->atc260x_dev,
+		ATC2603C_IRC_WK));
+	offset += scnprintf(buf + offset, PAGE_SIZE - offset,
+		"register atc2603_IRC_RCC(0x%04x) value is 0x%04x\n",
+		ATC2603C_IRC_RCC, atc260x_reg_read(irkeypad->atc260x_dev,
+		ATC2603C_IRC_RCC));
+
+	return offset;
+}
+
 static ssize_t atv5201_irkeypad_mousespeed_store(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf,size_t count)
@@ -783,6 +867,7 @@ static ssize_t atv5201_irkeypad_mousespeed_show(struct device *dev,
 
 
 static struct device_attribute irkeypad_attrs[] = {
+	__ATTR(status, S_IRUGO, atc260x_irkeypad_status_show, NULL),
 	__ATTR(mouseSpeed, S_IRUGO | S_IWUSR,  atv5201_irkeypad_mousespeed_show, atv5201_irkeypad_mousespeed_store),
 	__ATTR(queueSize,  S_IRUGO | S_IWUSR,	atv5201_irkeypad_show, atv5201_irkeypad_store),
 };
@@ -985,12 +1070,17 @@ static int atc260x_irkeypad_probe(struct platform_device *pdev)
 
 	}
 
-	for (i = 0; i < ARRAY_SIZE(irkeypad_attrs); i++) {
+	for (i = 1; i < ARRAY_SIZE(irkeypad_attrs); i++) {
 		ret = device_create_file(&pdev->dev, &irkeypad_attrs[i]);
 		if (ret) {
 			printk("failed to create sysfs file\n");
 			break;
 		}
+	}
+	ret = device_create_file(&input_dev->dev, &irkeypad_attrs[0]);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to create status sysfs file on input device\n");
+		goto free_input;
 	}
 	
 	power_timeout = jiffies;
@@ -1029,6 +1119,7 @@ static int atc260x_irkeypad_remove(struct platform_device *pdev)
 	for (i = 0; i < ARRAY_SIZE(irkeypad_attrs); i++) {
         device_remove_file(&pdev->dev, &irkeypad_attrs[i]);
 	}
+	device_remove_file(&irkeypad->input_dev->dev, &irkeypad_attrs[0]);
 	destroy_workqueue(irkeypad->wq);
 	platform_set_drvdata(pdev, NULL);
  
