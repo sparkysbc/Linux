@@ -17,6 +17,8 @@ make mrproper
 export ARCH=arm
 export CROSS_COMPILE=/opt/toolchains/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-
 make actduino_sparky_linux_defconfig
+#First make compiles everything, second make compiles to uImage only
+make -j$(nproc) HOSTCFLAGS="-fcommon"
 make -j$(nproc) HOSTCFLAGS="-fcommon" uImage
 
 # Prepare for transfer to sparky sbc
