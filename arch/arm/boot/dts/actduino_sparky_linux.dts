@@ -532,6 +532,22 @@
 				key_code = <172 113 182 103 108 165 163 115 114 164 166 28 1 2 3 4 5 6 7 8 9 0 158 14 15 105 106 111>;
 				compatible = "actions,atc2603c-irkeypad";
 			};
+			/*Example RC5 definition. Working for Creek cd53 remote*/
+			  ir_ch must be > 1. On the Sparky sbc the Ir receiver is connected to atc2603c's sgpio4 input. 
+			  key codes: KEY_NEXTSONG, KEY_PREVIOUSSONG, KEY_PAUSE, KEY_FASTREVERSE, KEY_FASTFORWARD, KEY_PLAY, KEY_STOP */
+			/*
+			atc260x-irkeypad{
+				size = <7>;
+				user_code = <20>;
+				ir_ch = <2>;
+				protocol = <2>;
+				wk_code= <77>;
+				period = <140>;
+				ir_code = <32 33 48 50 52 53 54>;
+				key_code = <163 165 119 629 208 207 128>;
+				compatible = "actions,atc2603c-irkeypad";
+			};
+			*/
 
 			/*the cfg params must be read	in the first installed ko,
 			 now snd-soc-atv5302.ko is first installed.

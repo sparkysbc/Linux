@@ -431,6 +431,7 @@ static void owl_unregister_thermal(void)
  * T = (838.45*5.068/(1024*12/count+7.894)-162+offset
  */
 static unsigned int led_stat=0;
+static unsigned int led_blink_count=0;
 static int offset=0;
 static int code_to_temp(struct owl_tmu_data *data, u32 temp_code)
 {
@@ -440,8 +441,22 @@ static int code_to_temp(struct owl_tmu_data *data, u32 temp_code)
 	tmp1 = tmp1/tmp2;
 	tmp1 = tmp1 - 162 + offset;
 	// printk(KERN_DEBUG "temp:%d\n", tmp1);
-	gpio_direction_output(RUN_LED , led_stat);
-	led_stat=!led_stat;
+	if(led_blink_count < 10)
+	{
+		gpio_direction_output(RUN_LED , led_stat);
+		led_stat=!led_stat;
+		led_blink_count++;
+	}
+	else
+	{
+		if(led_blink_count == 10)
+		{
+			gpio_free(RUN_LED);
+			led_blink_count++;
+			printk("Red Led blinking stopped\n");
+		}		
+	}
+	
 	return tmp1;
 }
 
