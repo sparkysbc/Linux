@@ -791,6 +791,17 @@ static int snd_allo_piano_dac_hw_params(
 				"Failed to set volume limit: %d\n", ret);
 	}
 
+	/* Copy settings of first dac to second DAC in dual mono mode */
+	if (glb_ptr->dual_mode == 1) { // Dual Mono
+		pcm512x_get_reg(0, PCM512x_DSP_PROGRAM, &val);
+		pcm512x_set_reg(1, PCM512x_DSP_PROGRAM, val);
+		pcm512x_get_reg(0, PCM512x_ANALOG_GAIN_CTRL, &val);
+		pcm512x_set_reg(1, PCM512x_ANALOG_GAIN_CTRL, val);
+		pcm512x_get_reg(0, PCM512x_ANALOG_GAIN_BOOST, &val);
+		pcm512x_set_reg(1, PCM512x_ANALOG_GAIN_BOOST, val);
+		dev_info(rtd->codec->dev,
+				"Dual Mono Mode: copying settings from DAC0 to DAC1\n");
+	}
 	ret = snd_allo_piano_dsp_program(rtd, glb_ptr->set_mode,
 					rate, glb_ptr->set_lowpass);
 
