@@ -21,8 +21,10 @@
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/gpio.h>
+#include <mach/gpio.h>
 #include <linux/err.h>
 #include <linux/slab.h>
+#include <linux/string.h>
 #include <linux/mfd/atc260x/atc260x.h>
 #include <linux/time.h>
 #include <linux/jiffies.h>
@@ -55,7 +57,7 @@
 #define IRC_STAT_IIP 		(0x1 << 2)
 #define IRC_STAT_IREP 		(0x1 << 0)
 
-#define GPIO_NAME_POWER_LED "power_led"
+#define GPIO_NAME_LED "activity_led"
 //static struct gpio_pre_cfg power_led_cfg;
 static int gpio_power_led_pin;
 static bool power_led_exist;
@@ -833,6 +835,36 @@ static ssize_t atc260x_irkeypad_status_show(struct device *dev,
 	return offset;
 }
 
+static ssize_t atc260x_irkeypad_led_feedback_show(struct device *dev,
+						  struct device_attribute *attr,
+						  char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%s\n",
+		led_blink_enable ? "on" : "off");
+}
+
+static ssize_t atc260x_irkeypad_led_feedback_store(struct device *dev,
+						   struct device_attribute *attr,
+						   const char *buf, size_t count)
+{
+	if (sysfs_streq(buf, "on")) {
+		led_blink_enable = true;
+	} else if (sysfs_streq(buf, "off")) {
+		led_blink_enable = false;
+		if (power_led_exist)
+			__gpio_set_value(gpio_power_led_pin, 0);
+	} else {
+		return -EINVAL;
+	}
+
+	return count;
+}
+
+static struct device_attribute irkeypad_led_feedback_attr =
+	__ATTR(ledFeedback, S_IRUGO | S_IWUSR,
+	       atc260x_irkeypad_led_feedback_show,
+	       atc260x_irkeypad_led_feedback_store);
+
 static ssize_t atv5201_irkeypad_mousespeed_store(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf,size_t count)
@@ -889,16 +921,21 @@ static int atc260x_irkeypad_probe(struct platform_device *pdev)
 
 	if(led_blink_enable){/*
 		memset((void *)&power_led_cfg, 0, sizeof(struct gpio_pre_cfg));
-		if (gpio_get_pre_cfg(GPIO_NAME_POWER_LED, &power_led_cfg)) {
+		if (gpio_get_pre_cfg(GPIO_NAME_LED, &power_led_cfg)) {
 			printk("\n[power] get  power led gpio failed!");
 			power_led_exist = false;
 		} else {
 			power_led_exist = true;
 			gpio_power_led_pin =  ASOC_GPIO_PORT(power_led_cfg.iogroup, power_led_cfg.pin_num);
-			gpio_request(gpio_power_led_pin, GPIO_NAME_POWER_LED);
+			gpio_request(gpio_power_led_pin, GPIO_NAME_LED);
 			gpio_direction_output(gpio_power_led_pin, 0);
 		}*/
 	}
+	/* We use the red led as IR receiver acknowledge */
+	power_led_exist = true;
+	gpio_power_led_pin = OWL_GPIO_PORTD(18);
+	gpio_request(gpio_power_led_pin, GPIO_NAME_LED);
+	gpio_direction_output(gpio_power_led_pin, 0);
 
 	irkeypad = kzalloc(sizeof(struct asoc_irkeypad), GFP_KERNEL);
 	if (irkeypad == NULL) {
@@ -1080,7 +1117,17 @@ static int atc260x_irkeypad_probe(struct platform_device *pdev)
 	ret = device_create_file(&input_dev->dev, &irkeypad_attrs[0]);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to create status sysfs file on input device\n");
-		goto free_input;
+		input_unregister_device(input_dev);
+		goto free_irq;
+	}
+	ret = device_create_file(&input_dev->dev,
+				 &irkeypad_led_feedback_attr);
+	if (ret) {
+		dev_err(&pdev->dev,
+			"failed to create ledFeedback sysfs file on input device\n");
+		device_remove_file(&input_dev->dev, &irkeypad_attrs[0]);
+		input_unregister_device(input_dev);
+		goto free_irq;
 	}
 	
 	power_timeout = jiffies;
@@ -1092,7 +1139,7 @@ free_input:
 	input_free_device(input_dev);
         input_set_drvdata(input_dev, NULL);
 free_irq:
-	free_irq(irkeypad->irq, pdev);
+	free_irq(irkeypad->irq, irkeypad);
 
 free_key_code:
 free_ir_code:
@@ -1111,15 +1158,15 @@ static int atc260x_irkeypad_remove(struct platform_device *pdev)
 
         GL5201_IRKEYPAD_INFO("[%s start]\n",__func__);
 	//asoc_irkeypad_close(irkeypad->input_dev);
+	device_remove_file(&irkeypad->input_dev->dev,
+			   &irkeypad_led_feedback_attr);
+	device_remove_file(&irkeypad->input_dev->dev, &irkeypad_attrs[0]);
 	free_irq(irkeypad->irq, irkeypad);
 	input_unregister_device(irkeypad->input_dev);
-	input_free_device(irkeypad->input_dev);
-	input_set_drvdata(irkeypad->input_dev, NULL);
 
 	for (i = 0; i < ARRAY_SIZE(irkeypad_attrs); i++) {
         device_remove_file(&pdev->dev, &irkeypad_attrs[i]);
 	}
-	device_remove_file(&irkeypad->input_dev->dev, &irkeypad_attrs[0]);
 	destroy_workqueue(irkeypad->wq);
 	platform_set_drvdata(pdev, NULL);
  
@@ -1238,7 +1285,7 @@ static void __exit atc260x_irkeypad_exit(void)
 module_init(atc260x_irkeypad_init);
 module_exit(atc260x_irkeypad_exit);
 
-MODULE_DESCRIPTION("Asoc irkeypad controller drvier");
+MODULE_DESCRIPTION("Asoc irkeypad controller driver");
 MODULE_AUTHOR("ZhigaoNi <zhigaoni@actions-semi.com>");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:asoc-irkeypad");
